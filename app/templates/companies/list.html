@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}公司管理{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center flex-wrap">
+        <h4><i class="fas fa-building me-2"></i>公司管理</h4>
+        <a href="/companies/add" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> 新增公司</a>
+    </div>
+</div>
+<div class="table-responsive">
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th>编码</th><th>名称</th><th>税号</th><th>行业</th><th>账套时长</th><th>AI点数</th><th>使用时效</th><th>状态</th><th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in companies %}
+            {% set pts = ai_data.get(c.id, 0) %}
+            <tr>
+                <td>{{ c.code }}</td>
+                <td><a href="/companies/{{ c.id }}">{{ c.name }}</a></td>
+                <td>{{ c.contact_person or '-' }}</td>
+                <td>{{ c.contact_phone or '-' }}</td>
+                <td>{% if c.closed_range %}<small>{{ c.closed_range }}</small>{% else %}<span class="text-muted">-</span>{% endif %}</td>
+                <td><span class="badge bg-{{ 'success' if pts > 0 else 'secondary' }}">{{ pts }}</span></td>
+                <td>
+                    {% if c.expiry_type == 'permanent' %}
+                    <span class="text-success">永久</span>
+                    {% elif c.is_expired %}
+                    <span class="text-danger">已过期 ({{ c.expiry_date }})</span>
+                    {% else %}
+                    <span class="text-warning">至 {{ c.expiry_date }}</span>
+                    {% endif %}
+                </td>
+                <td><span class="badge bg-{{ 'success' if c.status=='active' else 'secondary' }}">{{ c.status }}</span></td>
+                <td style="white-space:nowrap">
+                    <a href="/companies/{{ c.id }}" class="btn btn-sm btn-outline-info" title="查看"><i class="fas fa-eye"></i></a>
+                    <a href="/companies/edit/{{ c.id }}" class="btn btn-sm btn-outline-primary" title="编辑"><i class="fas fa-edit"></i></a>
+                    <button class="btn btn-sm btn-outline-warning" onclick="showAiRecharge({{ c.id }}, '{{ c.name }}')" title="AI点数充值"><i class="fas fa-coins"></i></button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- 充值弹窗 -->
+<div class="modal fade" id="aiRechargeModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-coins me-1"></i>AI点数充值</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small" id="rechargeCompanyName"></p>
+                <div class="mb-3">
+                    <label class="form-label">充值金额（元）</label>
+                    <div class="input-group">
+                        <span class="input-group-text">¥</span>
+                        <input type="number" id="rechargeAmount" class="form-control" value="10" min="1" step="1">
+                    </div>
+                    <small class="text-muted">1元 = 100 AI点数</small>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">获得点数</label>
+                    <div class="form-control-plaintext fw-bold text-success" id="rechargePointsPreview">1000 点</div>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">备注（可选）</label>
+                    <input type="text" id="rechargeRemark" class="form-control" placeholder="如：首次充值">
+                </div>
+                <div id="rechargeResult" class="small" style="display:none"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="doAiRecharge()"><i class="fas fa-coins"></i> 确认充值</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+var rechargeCompanyId = 0;
+function showAiRecharge(cid, cname) {
+    rechargeCompanyId = cid;
+    document.getElementById('rechargeCompanyName').textContent = '公司：' + cname;
+    document.getElementById('rechargeAmount').value = 10;
+    document.getElementById('rechargeRemark').value = '';
+    document.getElementById('rechargeResult').style.display = 'none';
+    updatePointsPreview();
+    new bootstrap.Modal(document.getElementById('aiRechargeModal')).show();
+}
+function updatePointsPreview() {
+    var amt = parseFloat(document.getElementById('rechargeAmount').value) || 0;
+    document.getElementById('rechargePointsPreview').textContent = (amt * 100) + ' 点';
+}
+document.getElementById('rechargeAmount').addEventListener('input', updatePointsPreview);
+function doAiRecharge() {
+    var amt = parseFloat(document.getElementById('rechargeAmount').value) || 0;
+    if (amt <= 0) { showToast('请输入有效金额', 'warning'); return; }
+    var fd = new FormData();
+    fd.append('company_id', rechargeCompanyId);
+    fd.append('amount', amt);
+    fd.append('remark', document.getElementById('rechargeRemark').value);
+    var btn = event.target; btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 充值中...';
+    fetch('/ai/recharge', {method:'POST', body: fd}).then(function(r){ return r.json(); }).then(function(d){
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-coins"></i> 确认充值';
+        if (d.success) {
+            document.getElementById('rechargeResult').className = 'text-success small';
+            document.getElementById('rechargeResult').textContent = d.msg;
+            document.getElementById('rechargeResult').style.display = 'block';
+            showToast(d.msg, 'success');
+            setTimeout(function(){ location.reload(); }, 1200);
+        } else {
+            document.getElementById('rechargeResult').className = 'text-danger small';
+            document.getElementById('rechargeResult').textContent = d.msg;
+            document.getElementById('rechargeResult').style.display = 'block';
+            showToast(d.msg, 'danger');
+        }
+    }).catch(function(){
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-coins"></i> 确认充值';
+        showToast('网络请求失败', 'danger');
+    });
+}
+</script>
+{% endblock %}

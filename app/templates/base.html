@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}AI财务管理系统{% endblock %}</title>
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome 6 -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <!-- Tom Select 可搜索下拉框 -->
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+    <link href="/static/css/style.css" rel="stylesheet">
+</head>
+<body>
+    {% if user and user.is_active %}
+    <!-- 侧边导航 -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <i class="fas fa-cube fa-2x"></i>
+            <span class="sidebar-title">
+                {% if user.role == 'super_admin' %}管理平台{% else %}AI财务管理系统{% endif %}
+            </span>
+        </div>
+        <div class="sidebar-user">
+            <div class="user-avatar">{{ user.display_name[:1] }}</div>
+            <div class="user-info">
+                <div class="user-name">{{ user.display_name }}</div>
+                <div class="user-role">{{ {'super_admin':'超级管理员','company_admin':'公司管理员','inputer':'录入员','reviewer':'审核员','viewer':'查看者'}[user.role] }}</div>
+                {% if company and user.role != 'super_admin' %}
+                {% endif %}
+            </div>
+        </div>
+        <nav class="sidebar-nav" id="sidebarNav">
+            {% if user.role == 'super_admin' %}
+            <a href="/dashboard" class="nav-item {% if request.url.path == '/dashboard' %}active{% endif %}">
+                <i class="fas fa-chart-pie"></i><span>总览</span>
+            </a>
+            <a href="/companies/" class="nav-item {% if 'companies' in request.url.path %}active{% endif %}">
+                <i class="fas fa-building"></i><span>公司管理</span>
+            </a>
+            <a href="/users/" class="nav-item {% if 'users' in request.url.path %}active{% endif %}">
+                <i class="fas fa-users"></i><span>用户管理</span>
+            </a>
+            <a href="/bank-templates/" class="nav-item {% if 'bank-templates' in request.url.path and 'learn' not in request.url.path %}active{% endif %}">
+                <i class="fas fa-file-alt"></i><span>回单模板</span>
+            </a>
+            <a href="/bank-templates/learn" class="nav-item {% if 'learn' in request.url.path %}active{% endif %}">
+                <i class="fas fa-graduation-cap"></i><span>学习格式</span>
+            </a>
+            <a href="/settings/" class="nav-item {% if 'settings' in request.url.path %}active{% endif %}">
+                <i class="fas fa-cog"></i><span>系统配置</span>
+            </a>
+            <a href="/ai/train" class="nav-item {% if 'ai/train' in request.url.path %}active{% endif %}">
+                <i class="fas fa-robot"></i><span>AI训练</span>
+            </a>
+            {% else %}
+            <!-- ===== 工作台 ===== -->
+            <a href="/dashboard" class="nav-item" data-nav="1"><i class="fas fa-chart-pie"></i><span>工作台</span></a>
+            <!-- ===== 凭证系统 ===== -->
+            <div class="nav-group-header" data-group="voucher" data-expanded="false"><i class="fas fa-file-invoice"></i><span>凭证系统</span><i class="fas fa-chevron-down nav-group-arrow"></i></div>
+            <a href="/vouchers/" class="nav-item nav-sub" data-group="voucher"><span>凭证管理</span></a>
+            <a href="/vouchers/copy" class="nav-item nav-sub" data-group="voucher"><span>复制凭证</span></a>
+            {% if user.role in ('reviewer', 'company_admin') %}
+            <a href="/vouchers/review" class="nav-item nav-sub" data-group="voucher"><span>凭证审核</span></a>
+            {% endif %}
+            <a href="/bank-receipts/" class="nav-item nav-sub" data-group="voucher"><span>银行回单</span></a>
+            <a href="/invoices/" class="nav-item nav-sub" data-group="voucher"><span>发票管理</span></a>
+            <!-- ===== 业务管理 ===== -->
+            <div class="nav-group-header" data-group="biz" data-expanded="false"><i class="fas fa-tasks"></i><span>业务管理</span><i class="fas fa-chevron-down nav-group-arrow"></i></div>
+            <a href="/accounts/" class="nav-item nav-sub" data-group="biz"><span>科目管理</span></a>
+            {% if user.role in ('company_admin', 'super_admin') %}
+            <a href="/scenes/" class="nav-item nav-sub" data-group="biz"><span>业务场景</span></a>
+            {% endif %}
+            <!-- ===== 报表系统 ===== -->
+            <div class="nav-group-header" data-group="report" data-expanded="false"><i class="fas fa-chart-bar"></i><span>报表系统</span><i class="fas fa-chevron-down nav-group-arrow"></i></div>
+            {% if user.role in ('company_admin', 'super_admin') %}
+            <a href="/assessment/" class="nav-item nav-sub" data-group="report"><span>健康测评</span></a>
+            {% endif %}
+            <a href="/reports/" class="nav-item nav-sub" data-group="report"><span>报表中心</span></a>
+            <!-- ===== 系统管理 ===== -->
+            {% if user.role in ('company_admin',) %}
+            <div class="nav-group-header" data-group="sys" data-expanded="false"><i class="fas fa-cog"></i><span>系统管理</span><i class="fas fa-chevron-down nav-group-arrow"></i></div>
+            <a href="/users/" class="nav-item nav-sub" data-group="sys"><span>用户管理</span></a>
+            <a href="/settings/" class="nav-item nav-sub" data-group="sys"><span>系统配置</span></a>
+            {% elif user.role in ('super_admin',) %}
+            <div class="nav-group-header" data-group="sys" data-expanded="false"><i class="fas fa-wrench"></i><span>系统管理</span><i class="fas fa-chevron-down nav-group-arrow"></i></div>
+            <a href="/settings/" class="nav-item nav-sub" data-group="sys"><span>系统配置</span></a>
+            {% endif %}
+            {% endif %}
+        </nav>
+        <div class="sidebar-footer">
+        </div>
+    </div>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var nav = document.getElementById('sidebarNav');
+        if (!nav) return;
+        var p = window.location.pathname;
+
+        // 手风琴折叠逻辑
+        var groups = nav.querySelectorAll('.nav-group-header');
+        groups.forEach(function(header) {
+            var g = header.getAttribute('data-group');
+            // 点击展开/收起
+            header.addEventListener('click', function(e) {
+                e.preventDefault();
+                var isExpanded = header.getAttribute('data-expanded') === 'true';
+                // 收起所有组
+                groups.forEach(function(h) {
+                    h.setAttribute('data-expanded', 'false');
+                    var hg = h.getAttribute('data-group');
+                    nav.querySelectorAll('a.nav-sub[data-group="' + hg + '"]').forEach(function(a) {
+                        a.style.display = 'none';
+                    });
+                });
+                // 如果之前是收起状态，展开当前组
+                if (!isExpanded) {
+                    header.setAttribute('data-expanded', 'true');
+                    nav.querySelectorAll('a.nav-sub[data-group="' + g + '"]').forEach(function(a) {
+                        a.style.display = 'flex';
+                    });
+                }
+            });
+        });
+
+        // 页面加载时自动展开含当前页面的组，其余收起
+        groups.forEach(function(header) {
+            var g = header.getAttribute('data-group');
+            var hasActive = false;
+            nav.querySelectorAll('a.nav-sub[data-group="' + g + '"]').forEach(function(a) {
+                var h = a.getAttribute('href');
+                if (h && h !== '#' && p.indexOf(h.replace(/\/+$/, '')) === 0) hasActive = true;
+            });
+            if (hasActive) {
+                header.setAttribute('data-expanded', 'true');
+                nav.querySelectorAll('a.nav-sub[data-group="' + g + '"]').forEach(function(a) {
+                    a.style.display = 'flex';
+                });
+            } else {
+                header.setAttribute('data-expanded', 'false');
+                nav.querySelectorAll('a.nav-sub[data-group="' + g + '"]').forEach(function(a) {
+                    a.style.display = 'none';
+                });
+            }
+        });
+
+        // 高亮当前页面
+        nav.querySelectorAll('a.nav-item').forEach(function(a) {
+            var h = a.getAttribute('href');
+            if (h && h !== '#' && h.indexOf('javascript:') !== 0 && p.indexOf(h.replace(/\/+$/, '')) === 0) a.classList.add('active');
+        });
+    });
+    </script>
+
+    <!-- 主内容 -->
+    <div class="main-content" id="mainContent">
+        <div class="top-bar">
+            <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="top-bar-center">
+                {% if company and user.role != 'super_admin' %}
+                <div class="company-badge"><i class="fas fa-building me-1"></i>{{ company.name }}</div>
+                {% endif %}
+            </div>
+            <div class="top-bar-right">
+                <a href="javascript:void(0)" class="top-bar-action" onclick="showChangePwd()" title="修改密码">
+                    <i class="fas fa-key"></i>
+                </a>
+                {% if user.role != 'super_admin' and user.company_id %}
+                <a href="javascript:void(0)" class="top-bar-action" onclick="showUserSwitch()" title="切换用户">
+                    <i class="fas fa-exchange-alt"></i>
+                </a>
+                {% endif %}
+                <a href="javascript:void(0)" class="top-bar-action" onclick="showConfirm('确认退出登录？', function() { location.href='/auth/logout'; })" title="退出登录">
+                    <i class="fas fa-sign-out-alt"></i>
+                </a>
+            </div>
+        </div>
+        <div class="content-wrapper">
+            {% if company_expired and user.role != 'super_admin' %}
+            <div class="alert alert-danger mb-3">
+                <i class="fas fa-exclamation-triangle"></i>
+                <strong>企业使用权限已过期！</strong>
+                系统仅可查看历史数据，无法进行凭证录入、回单导入、发票导入等写操作。
+                <a href="/companies/" class="alert-link">联系超级管理员</a>续费后恢复使用。
+            </div>
+            {% endif %}
+            {% if show_setup %}
+            <div class="alert alert-warning mb-3">
+                <i class="fas fa-exclamation-triangle"></i> 企业尚未完成期初设置，
+                <a href="/setup/" class="alert-link">点击此处完成设置</a>
+                ，否则部分功能不可用。
+            </div>
+            {% endif %}
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+    {% else %}
+    <div class="container-fluid p-0">
+        {% block guest_content %}{% endblock %}
+    </div>
+    {% endif %}
+
+    <!-- ===== 浮动AI助手 ===== -->
+    {% if user and user.is_active and user.role != 'super_admin' and user.company_id %}
+    <div id="aiFloatingIcon" class="ai-float-icon" title="AI财务助手">
+        <i class="fas fa-robot"></i>
+        <span class="ai-float-badge" id="aiFloatBadge">0</span>
+    </div>
+    <div id="aiFloatPanel" class="ai-float-panel" style="display:none;">
+        <div class="ai-float-header">
+            <span><i class="fas fa-robot me-1"></i>AI财务助手</span>
+            <small class="ai-float-balance" id="aiFloatBalance">点数: 0</small>
+            <button class="btn-close btn-close-white btn-sm" onclick="toggleAiPanel()"></button>
+        </div>
+        <div class="ai-float-body" id="aiFloatBody">
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-robot fa-2x mb-2" style="opacity:0.3"></i>
+                <p class="small">您好！我是AI财务助手，可以为您解答财务问题和系统使用问题。</p>
+            </div>
+        </div>
+        <div class="ai-float-input">
+            <textarea id="aiFloatInput" rows="2" placeholder="输入问题..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAiFloatMsg()}"></textarea>
+            <button onclick="sendAiFloatMsg()"><i class="fas fa-paper-plane"></i></button>
+        </div>
+    </div>
+    {% endif %}
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/main.js"></script>
+    <script>
+    // ===== 全局 Toast 通知 =====
+    function showToast(msg, type) {
+        const toast = document.getElementById('toastMsg');
+        const body = document.getElementById('toastBody');
+        body.textContent = msg;
+        toast.className = 'toast align-items-center border-0';
+        const bgMap = {'success':'text-bg-success','danger':'text-bg-danger','error':'text-bg-danger','warning':'text-bg-warning','info':'text-bg-info'};
+        toast.classList.add(bgMap[type] || 'text-bg-info');
+        bootstrap.Toast.getOrCreateInstance(toast).show();
+    }
+
+    // ===== 全局确认弹窗 =====
+    function showConfirm(msg, callback) {
+        document.getElementById('confirmBody').innerHTML = '<i class="fas fa-question-circle me-2 text-warning"></i>' + msg;
+        document.getElementById('confirmBtn').onclick = function() {
+            bootstrap.Modal.getInstance(document.getElementById('confirmModal')).hide();
+            if (callback) callback();
+        };
+        new bootstrap.Modal(document.getElementById('confirmModal')).show();
+    }
+
+    // ===== 表单确认提交 =====
+    function confirmFormSubmit(e, msg) {
+        e.preventDefault();
+        const form = e.target;
+        showConfirm(msg, function() { form.submit(); });
+    }
+    </script>
+    {% block scripts %}{% endblock %}
+
+    <!-- Toast 通知容器 -->
+    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:99999" id="toastContainer">
+        <div id="toastMsg" class="toast align-items-center text-bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body" id="toastBody"></div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 确认弹窗 -->
+    <div class="modal fade" id="confirmModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="confirmTitle"><i class="fas fa-question-circle me-1"></i>确认操作</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="confirmBody">确认执行此操作？</div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="confirmBtn">确认</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 修改密码弹窗 -->
+    <div class="modal fade" id="changePwdModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-key me-1"></i>修改密码</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small">原密码</label>
+                        <input id="oldPwd" type="password" class="form-control" placeholder="输入当前密码"
+                               onkeydown="if(event.key==='Enter') document.getElementById('newPwd').focus()">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">新密码</label>
+                        <input id="newPwd" type="password" class="form-control" placeholder="输入新密码（至少6位）"
+                               onkeydown="if(event.key==='Enter') doChangePwd()">
+                    </div>
+                    <div id="pwdError" class="text-danger small" style="display:none"></div>
+                    <div id="pwdSuccess" class="text-success small" style="display:none"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="doChangePwd()"><i class="fas fa-save"></i> 保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 用户切换弹窗 -->
+    <div class="modal fade" id="userSwitchModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-exchange-alt me-1"></i>切换用户</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-2">选择要切换到的用户，输入该用户的密码：</p>
+                    <div class="mb-3">
+                        <label class="form-label small">选择用户</label>
+                        <select id="switchUserSelect" class="form-select" size="5" style="font-size:16px">
+                            <option value="" disabled>加载中...</option>
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">密码</label>
+                        <input id="switchPassword" type="password" class="form-control" placeholder="输入该用户的密码"
+                               onkeydown="if(event.key==='Enter') doSwitch()">
+                    </div>
+                    <div id="switchError" class="text-danger small" style="display:none"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="doSwitch()"><i class="fas fa-exchange-alt"></i> 切换</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+    <script>
+    // 初始化所有科目下拉框为可搜索
+    function initAccountSelects(container) {
+        if (typeof TomSelect === 'undefined') return;
+        (container || document).querySelectorAll('select[name^="account_id_"]:not(.ts-wrapper), select[name$="_account_id"]:not(.ts-wrapper)').forEach(el => {
+            if (el.closest('.ts-wrapper')) return;
+            new TomSelect(el, {
+                create: false, sortField: [{field: 'text', direction: 'asc'}],
+                render: {option: function(data, escape) {
+                    return '<div>' + escape(data.text) + '</div>';
+                }},
+                onDropdownOpen: function() { this.focus(); },
+            });
+        });
+    }
+    document.addEventListener('DOMContentLoaded', function() { initAccountSelects(); });
+
+    // ===== 修改密码 =====
+    function showChangePwd() {
+        document.getElementById('oldPwd').value = '';
+        document.getElementById('newPwd').value = '';
+        document.getElementById('pwdError').style.display = 'none';
+        document.getElementById('pwdSuccess').style.display = 'none';
+        new bootstrap.Modal(document.getElementById('changePwdModal')).show();
+        setTimeout(function(){ document.getElementById('oldPwd').focus(); }, 400);
+    }
+    function doChangePwd() {
+        var oldPwd = document.getElementById('oldPwd').value;
+        var newPwd = document.getElementById('newPwd').value;
+        var errEl = document.getElementById('pwdError');
+        var okEl = document.getElementById('pwdSuccess');
+        errEl.style.display = 'none';
+        okEl.style.display = 'none';
+        if (!oldPwd) { errEl.textContent = '请输入原密码'; errEl.style.display = 'block'; return; }
+        if (!newPwd || newPwd.length < 6) { errEl.textContent = '新密码至少6位'; errEl.style.display = 'block'; return; }
+        var fd = new FormData();
+        fd.append('old_password', oldPwd);
+        fd.append('new_password', newPwd);
+        fetch('/auth/change-password', {method:'POST', body: fd}).then(function(r){ return r.json(); }).then(function(d){
+            if (d.success) {
+                okEl.textContent = d.msg;
+                okEl.style.display = 'block';
+                document.getElementById('oldPwd').value = '';
+                document.getElementById('newPwd').value = '';
+            } else {
+                errEl.textContent = d.msg;
+                errEl.style.display = 'block';
+            }
+        }).catch(function(){ errEl.textContent = '请求失败'; errEl.style.display = 'block'; });
+    }
+
+    function showUserSwitch() {
+        document.getElementById('switchPassword').value = '';
+        document.getElementById('switchError').style.display = 'none';
+        const sel = document.getElementById('switchUserSelect');
+        sel.innerHTML = '<option value="" disabled>加载中...</option>';
+        const modal = new bootstrap.Modal(document.getElementById('userSwitchModal'));
+        modal.show();
+        // 等弹窗动画完成后再加载用户列表
+        document.getElementById('userSwitchModal').addEventListener('shown.bs.modal', function loadUsers() {
+            fetch('/auth/company-users').then(r=>r.json()).then(d=>{
+                sel.innerHTML = '';
+                d.users.forEach(u => {
+                    const opt = document.createElement('option');
+                    opt.value = u.id;
+                    opt.textContent = u.display_name + ' (' + u.username + ') - ' + u.role_name;
+                    if (u.id === d.current_id) opt.disabled = true;
+                    sel.appendChild(opt);
+                });
+                if (sel.options.length > 0) sel.options[0].selected = true;
+            }).catch(e => {
+                sel.innerHTML = '<option value="" disabled>加载失败</option>';
+                document.getElementById('switchError').textContent = '加载用户列表失败';
+                document.getElementById('switchError').style.display = 'block';
+            });
+            document.getElementById('userSwitchModal').removeEventListener('shown.bs.modal', loadUsers);
+        });
+    }
+    function doSwitch() {
+        const sel = document.getElementById('switchUserSelect');
+        const userId = sel.value;
+        const password = document.getElementById('switchPassword').value;
+        if (!userId) { showToast('请选择用户', 'warning'); return; }
+        if (!password) { showToast('请输入密码', 'warning'); return; }
+        const fd = new FormData();
+        fd.append('target_user_id', userId);
+        fd.append('password', password);
+        fetch('/auth/switch-user', {method:'POST', body: fd}).then(r=>r.json()).then(d=>{
+            if (d.success) {
+                bootstrap.Modal.getInstance(document.getElementById('userSwitchModal')).hide();
+                showToast(d.msg, 'success');
+                setTimeout(function() { location.reload(); }, 600);
+            } else {
+                document.getElementById('switchError').textContent = d.msg;
+                document.getElementById('switchError').style.display = 'block';
+            }
+        }).catch(e => {
+            document.getElementById('switchError').textContent = '网络请求失败';
+            document.getElementById('switchError').style.display = 'block';
+        });
+    }
+
+    // ===== 微信绑定 =====
+    function showWechatBind() {
+        document.getElementById('wechatBoundInfo').style.display = 'none';
+        document.getElementById('wechatBindLoading').style.display = 'block';
+        document.getElementById('wechatBindQrArea').style.display = 'none';
+        document.getElementById('wechatBindError').style.display = 'none';
+        document.getElementById('unbindWechatBtn').style.display = 'none';
+        new bootstrap.Modal(document.getElementById('wechatBindModal')).show();
+        {% if user.wechat_id %}
+        document.getElementById('wechatBindLoading').style.display = 'none';
+        document.getElementById('wechatBoundInfo').innerHTML = '<i class="fab fa-weixin"></i> 已绑定微信号: <strong>{{ user.wechat_id[:20] }}</strong>';
+        document.getElementById('wechatBoundInfo').style.display = 'block';
+        document.getElementById('unbindWechatBtn').style.display = 'inline-block';
+        return;
+        {% endif %}
+
+        fetch('/auth/wechat/bind', {method:'POST'})
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.success) {
+                document.getElementById('wechatBindLoading').style.display = 'none';
+                document.getElementById('wechatBindQrArea').style.display = 'block';
+                document.getElementById('unbindWechatBtn').style.display = 'inline-block';
+                var container = document.getElementById('wechatBindQrContainer');
+                if (d.qr_data_url) {
+                    container.innerHTML = '<img src="' + d.qr_data_url + '" alt="微信绑定二维码" style="width:200px;height:200px;border-radius:8px;">';
+                }
+                startBindPolling();
+            } else {
+                document.getElementById('wechatBindLoading').style.display = 'none';
+                document.getElementById('wechatBindError').style.display = 'block';
+                if (d.msg.indexOf('已绑定') >= 0) {
+                    // 已绑定时显示已绑定的微信号
+                    fetch('/auth/current-user')
+                    .then(function(r) { return r.json(); })
+                    .then(function(u) {
+                        if (u.wechat_id) {
+                            document.getElementById('wechatBoundInfo').innerHTML = '<i class="fab fa-weixin"></i> 已绑定微信号: <strong>' + (u.wechat_id || '').substring(0,20) + '</strong>';
+                            document.getElementById('wechatBoundInfo').style.display = 'block';
+                            document.getElementById('wechatBindError').textContent = '如需更换微信号，请先解除绑定';
+                        } else {
+                            document.getElementById('wechatBindError').textContent = d.msg;
+                        }
+                    }).catch(function() {
+                        document.getElementById('wechatBindError').textContent = d.msg;
+                    });
+                    document.getElementById('unbindWechatBtn').style.display = 'inline-block';
+                } else {
+                    document.getElementById('wechatBindError').textContent = d.msg;
+                }
+            }
+        })
+        .catch(function() {
+            document.getElementById('wechatBindLoading').style.display = 'none';
+            document.getElementById('wechatBindError').textContent = '网络请求失败';
+            document.getElementById('wechatBindError').style.display = 'block';
+        });
+    }
+
+    function startBindPolling() {
+        var t = setInterval(function() {
+            fetch('/auth/current-user')
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.wechat_id) {
+                    clearInterval(t);
+                    document.getElementById('wechatBindLoading').style.display = 'none';
+                    document.getElementById('wechatBindQrArea').style.display = 'none';
+                    document.getElementById('wechatBindError').style.display = 'none';
+                    document.getElementById('wechatBoundInfo').innerHTML = '<i class="fab fa-weixin"></i> 已绑定微信号: <strong>' + (d.wechat_id || '').substring(0,20) + '</strong>';
+                    document.getElementById('wechatBoundInfo').style.display = 'block';
+                    showToast('微信号绑定成功', 'success');
+                }
+            }).catch(function() {});
+        }, 2000);
+    }
+
+    function unbindWechat() {
+        showConfirm('确认解除微信绑定？解除后需重新扫码绑定。', function() {
+            fetch('/auth/wechat/unbind', {method:'POST'})
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.success) {
+                    bootstrap.Modal.getInstance(document.getElementById('wechatBindModal')).hide();
+                    showToast('已解除微信绑定', 'success');
+                    setTimeout(function() { location.reload(); }, 600);
+                } else {
+                    showToast(d.msg, 'danger');
+                }
+            })
+            .catch(function() { showToast('网络请求失败', 'danger'); });
+        });
+    }
+
+    // ===== 会计期间同步：选择存Cookie，跨页面保持一致 =====
+    function savePeriodCookie(period) {
+        document.cookie = 'current_period=' + period + '; path=/; max-age=86400';
+    }
+    document.addEventListener('change', function(e) {
+        if (e.target.matches('input[type="month"][name="period"]')) {
+            savePeriodCookie(e.target.value);
+        }
+    });
+
+    // ===== 浮动AI助手 =====
+    {% if user and user.is_active and user.role != 'super_admin' and user.company_id %}
+    var aiBalance = 0;
+    var aiMsgCount = 0;
+    var _aiPageContext = '';
+    var _aiConfigured = false;
+
+    function toggleAiPanel() {
+        if (!_aiConfigured) { showToast('请先联系管理员在系统配置中设置 Deepseek API Key', 'warning'); return; }
+        var p = document.getElementById('aiFloatPanel');
+        if (p.style.display === 'none') { p.style.display = 'flex'; loadAiBalance(); }
+        else { p.style.display = 'none'; }
+    }
+
+    function loadAiStatus() {
+        fetch('/ai/status').then(function(r){ return r.json(); }).then(function(d){
+            _aiConfigured = d.configured;
+            aiBalance = d.balance || 0;
+            var icon = document.getElementById('aiFloatingIcon');
+            if (icon) icon.className = 'ai-float-icon' + (d.configured ? '' : ' disabled');
+            var badge = document.getElementById('aiFloatBalance');
+            if (badge) badge.textContent = '点数: ' + aiBalance;
+        }).catch(function(){});
+    }
+
+    // 功能名称 → 链接映射
+    var aiLinkMap = {'凭证录入':'/vouchers/add','凭证管理':'/vouchers/','复制凭证':'/vouchers/copy','凭证审核':'/vouchers/review','银行回单':'/bank-receipts/','发票管理':'/invoices/','科目管理':'/accounts/','业务场景':'/scenes/','报表中心':'/reports/','健康测评':'/assessment/','用户管理':'/users/','系统配置':'/settings/'};
+
+    function addAiMsg(role, content) {
+        var body = document.getElementById('aiFloatBody');
+        var d = document.createElement('div');
+        d.className = 'msg ' + role;
+        if (role === 'assistant') {
+            // 将 [功能名称] 转为可点击链接
+            content = content.replace(/\[([^\]]+)\]/g, function(m, name) {
+                var url = aiLinkMap[name];
+                return url ? '<a href="' + url + '" class="ai-link" target="_parent">' + name + '</a>' : name;
+            });
+        }
+        d.innerHTML = content + '<div class="meta">' + (role === 'assistant' ? '🤖' : '👤') + ' 刚刚</div>';
+        body.appendChild(d);
+        body.scrollTop = body.scrollHeight;
+    }
+
+    function showAiTyping() {
+        var body = document.getElementById('aiFloatBody');
+        var d = document.createElement('div');
+        d.className = 'msg assistant';
+        d.id = 'aiTyping';
+        d.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
+        body.appendChild(d);
+        body.scrollTop = body.scrollHeight;
+    }
+
+    function removeAiTyping() {
+        var t = document.getElementById('aiTyping');
+        if (t) t.remove();
+    }
+
+    function sendAiFloatMsg() {
+        var input = document.getElementById('aiFloatInput');
+        var msg = input.value.trim();
+        if (!msg) return;
+        input.value = '';
+        addAiMsg('user', msg.replace(/\n/g, '<br>'));
+        showAiTyping();
+        var fd = new FormData();
+        fd.append('message', msg);
+        if (_aiPageContext) fd.append('page_context', _aiPageContext);
+        fetch('/ai/chat', {method:'POST', body: fd}).then(function(r){ return r.json(); }).then(function(d){
+            removeAiTyping();
+            if (d.success) {
+                addAiMsg('assistant', d.reply.replace(/\n/g, '<br>'));
+                aiBalance = d.balance || 0;
+                document.getElementById('aiFloatBalance').textContent = '点数: ' + aiBalance;
+            } else {
+                addAiMsg('assistant', '⚠️ ' + (d.msg || '请求失败'));
+                if (d.balance === 0) { aiBalance = 0; document.getElementById('aiFloatBalance').textContent = '点数: 0'; }
+            }
+        }).catch(function(){
+            removeAiTyping();
+            addAiMsg('assistant', '⚠️ 网络请求失败');
+        });
+    }
+
+    // 浮动图标拖拽
+    document.addEventListener('DOMContentLoaded', function() {
+        var icon = document.getElementById('aiFloatingIcon');
+        if (!icon) return;
+        var offsetX, offsetY, startX, startY, dragging = false;
+        icon.addEventListener('mousedown', function(e) {
+            dragging = false;
+            startX = e.clientX;
+            startY = e.clientY;
+            offsetX = e.clientX - icon.getBoundingClientRect().left;
+            offsetY = e.clientY - icon.getBoundingClientRect().top;
+            icon.style.cursor = 'grabbing';
+            function onMove(ev) {
+                if (Math.abs(ev.clientX - startX) > 5 || Math.abs(ev.clientY - startY) > 5) {
+                    dragging = true;
+                }
+                if (dragging) {
+                    icon.style.left = (ev.clientX - offsetX) + 'px';
+                    icon.style.top = (ev.clientY - offsetY) + 'px';
+                    icon.style.right = 'auto';
+                    icon.style.bottom = 'auto';
+                }
+            }
+            function onUp() {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+                icon.style.cursor = 'grab';
+                if (!dragging) toggleAiPanel();
+            }
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+            e.preventDefault();
+        });
+        // 触摸设备支持
+        icon.addEventListener('touchstart', function(e) {
+            var touch = e.touches[0];
+            offsetX = touch.clientX - icon.getBoundingClientRect().left;
+            offsetY = touch.clientY - icon.getBoundingClientRect().top;
+            function onTouchMove(ev) {
+                var t = ev.touches[0];
+                icon.style.left = (t.clientX - offsetX) + 'px';
+                icon.style.top = (t.clientY - offsetY) + 'px';
+                icon.style.right = 'auto';
+                icon.style.bottom = 'auto';
+            }
+            function onTouchEnd() {
+                document.removeEventListener('touchmove', onTouchMove);
+                document.removeEventListener('touchend', onTouchEnd);
+            }
+            document.addEventListener('touchmove', onTouchMove, {passive: true});
+            document.addEventListener('touchend', onTouchEnd);
+            e.preventDefault();
+        }, {passive: false});
+        loadAiStatus();
+    });
+    {% endif %}
+    </script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+# 数据库文件
+*.db
+*.db-wal
+*.db-shm
+*.db.bak
+
+# 敏感配置
+.env
+*.key
+*.pem
+cookies.txt
+
+# PDF/字体/文档等非源码文件
+*.pdf
+*.md
+*.ttc
+*.ttf
+train_ai.py
+login_page.html
+_cookies.txt
+
+# 上传文件
+uploads/
+!uploads/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.spec
+dist/
+build/
+*.egg-info/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*~
+
+# 临时测试文件
+test_*.py
+diag_*.py
+*.bat
+
+# 系统文件
+Thumbs.db
+.DS_Store

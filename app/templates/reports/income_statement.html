@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}利润表{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center flex-wrap">
+        <h4><i class="fas fa-chart-line me-2"></i>利润表</h4>
+        <div>
+            <div class="btn-group btn-group-sm me-2">
+                <a href="/reports/trial-balance?period_type={{ period_type }}&period_value={{ period_value }}" class="btn btn-outline-primary">科目汇总</a>
+                <a href="/reports/balance-sheet?period_type={{ period_type }}&period_value={{ period_value }}" class="btn btn-outline-primary">资产负债表</a>
+                <a href="javascript:void(0)" class="btn btn-primary active">利润表</a>
+            </div>
+            <div class="btn-group btn-group-sm">
+                <button class="btn btn-sm btn-info" onclick="saveReport('income_statement')"><i class="fas fa-save"></i> 保存</button>
+                <a href="/reports/export?type=income&period_type={{ period_type }}&period_value={{ period_value }}" class="btn btn-sm btn-success"><i class="fas fa-file-excel"></i> Excel</a>
+                <a href="/reports/export-pdf?type=income&period_type={{ period_type }}&period_value={{ period_value }}" class="btn btn-sm btn-danger" target="_blank"><i class="fas fa-file-pdf"></i> PDF</a>
+            </div>
+        </div>
+    </div>
+    <div id="cacheHint" class="mt-1" style="display:none"></div>
+    <div class="d-flex justify-content-between align-items-center mt-1">
+        <p class="text-muted small mb-0">{{ statement.company }} · <strong>{{ period_display }}</strong></p>
+        {% include "reports/_period_selector.html" %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered mb-0" style="font-size:16px">
+                <thead>
+                    <tr class="bg-light text-center">
+                        <th style="width:55%">项目</th>
+                        <th style="width:10%">行次</th>
+                        <th style="width:17%">本月数</th>
+                        <th style="width:18%">本年累计数</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in statement['items'] %}
+                    <tr class="{{ 'fw-bold' if (item.is_total) or (item.name.startswith('一、') or item.name.startswith('二、') or item.name.startswith('三、') or item.name.startswith('四、') or item.name.startswith('五、')) else '' }}">
+                        <td>{{ item.name }}</td>
+                        <td class="text-center">{{ item.line_no }}</td>
+                        <td class="text-center {{ 'text-primary' if item.amount > 0 and item.is_total else 'text-danger' if item.amount < 0 else '' }}">
+                            {{ '%.2f'|format(item.amount) if item.amount != 0 else '' }}
+                        </td>
+                        <td class="text-center {{ 'text-primary' if item.cumulative > 0 and item.is_total else 'text-danger' if item.cumulative < 0 else '' }}">
+                            {{ '%.2f'|format(item.cumulative) if item.cumulative != 0 else '' }}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const CUR_TYPE = 'income_statement';
+const CUR_PERIOD_TYPE = '{{ period_type }}';
+const CUR_PERIOD_VALUE = '{{ period_value }}';
+_aiPageContext = '正在查看利润表，期间:' + CUR_PERIOD_VALUE;
+fetch('/reports/check-cache?type='+CUR_TYPE+'&period_type='+CUR_PERIOD_TYPE+'&period_value='+CUR_PERIOD_VALUE)
+    .then(r=>r.json()).then(d=>{ if(d.cached) { document.getElementById('cacheHint').innerHTML = '<div class="alert alert-info py-1 mb-1"><i class="fas fa-database"></i> 已保存 <a href="/reports/history" target="_blank">查看历史</a>（'+d.created_at+'）</div>'; document.getElementById('cacheHint').style.display = ''; } });
+function saveReport(type) {
+    var fd = new FormData();
+    fd.append('type',type);fd.append('period_type',CUR_PERIOD_TYPE);fd.append('period_value',CUR_PERIOD_VALUE);
+    fd.append('data',JSON.stringify({type:type,period_type:CUR_PERIOD_TYPE,period_value:CUR_PERIOD_VALUE}));
+    fetch('/reports/save',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{ showToast(d.msg,d.success?'success':'danger'); if(d.success) location.reload(); });
+}
+</script>
+{% endblock %}

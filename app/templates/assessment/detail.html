@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block title %}测评详情 - 财务管理系统{% endblock %}
+{% block content %}
+
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center flex-wrap">
+        <div>
+            <h4 class="mb-1"><i class="fas fa-heartbeat me-2 text-danger"></i>测评详情</h4>
+            <p class="text-muted mb-0">{{ company.name }} · {{ model_info.name if model_info else record.model_id }}</p>
+        </div>
+        <div class="mt-2 mt-md-0">
+            <a href="/assessment/" class="btn btn-sm btn-outline-primary"><i class="fas fa-arrow-left"></i> 返回</a>
+            <a href="/assessment/history" class="btn btn-sm btn-outline-info"><i class="fas fa-history"></i> 历史</a>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-info-circle me-1"></i>基本信息</span>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-3"><small class="text-muted d-block">测评模型</small><strong>{{ model_info.name if model_info else record.model_id }}</strong></div>
+            <div class="col-md-2"><small class="text-muted d-block">会计期间</small><strong>{{ record.period }}</strong></div>
+            <div class="col-md-2"><small class="text-muted d-block">评分</small><strong class="fs-5">{{ '%.1f'|format(record.score) }}</strong></div>
+            <div class="col-md-2">
+                <small class="text-muted d-block">评级</small>
+                {% set lv = record.level %}
+                {% if lv in ('优秀','安全','充裕') %}
+                <span class="badge bg-success fs-6">{{ lv }}</span>
+                {% elif lv in ('良好','正常') %}
+                <span class="badge bg-info fs-6">{{ lv }}</span>
+                {% elif lv in ('一般','灰色','关注') %}
+                <span class="badge bg-warning text-dark fs-6">{{ lv }}</span>
+                {% else %}
+                <span class="badge bg-danger fs-6">{{ lv }}</span>
+                {% endif %}
+            </div>
+            <div class="col-md-3"><small class="text-muted d-block">测评时间</small><strong>{{ record.created_at.strftime('%Y-%m-%d %H:%M') if record.created_at else '' }}</strong></div>
+        </div>
+        {% if model_info %}
+        <div class="mt-2">
+            <small class="text-muted">{{ model_info.description }}</small>
+            <br><small class="text-muted"><i class="fas fa-users me-1"></i>{{ model_info.suitable_for }}</small>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if result_data %}
+<!-- 评分概览 -->
+<div class="card mb-3">
+    <div class="card-header"><i class="fas fa-chart-bar me-1"></i>评分概览</div>
+    <div class="card-body">
+        <div class="row align-items-center">
+            <div class="col-md-3 text-center">
+                {% set scoreColor = '#198754' if record.score >= 70 else ('#ffc107' if record.score >= 40 else '#dc3545') %}
+                <div style="width:120px;height:120px;border-radius:50%;background:{{ scoreColor }}20;color:{{ scoreColor }};border:4px solid {{ scoreColor }};display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:bold;margin:0 auto">
+                    {{ '%.1f'|format(record.score) }}
+                </div>
+                <div class="mt-2">
+                    <span class="badge bg-{{ 'success' if record.score >= 70 else ('warning' if record.score >= 40 else 'danger') }} fs-6">{{ record.level }}</span>
+                </div>
+                {% if result_data.z_value is defined %}
+                <div class="mt-2">
+                    <small class="text-muted">Z值</small>
+                    <div class="fs-5 fw-bold">{{ result_data.z_value }}</div>
+                </div>
+                {% endif %}
+            </div>
+            <div class="col-md-9">
+                <div class="table-responsive">
+                    <table class="table table-sm table-borderless mb-0">
+                        <tbody>
+                            {% for key, ind in (result_data.indicators or {}).items() %}
+                            <tr>
+                                <td style="width:35%"><strong>{{ key }}</strong>
+                                    {% if ind.weight %}<br><small class="text-muted">权重: {{ ind.weight }}</small>{% endif %}
+                                </td>
+                                <td style="width:25%">
+                                    <span class="badge bg-primary fs-6">{{ ind.value if ind.value is defined else ind }}</span>
+                                </td>
+                                <td style="width:40%">
+                                    {% if ind.desc %}<small class="text-muted">{{ ind.desc }}</small>{% endif %}
+                                    {% if ind.standard %}<br><small class="text-muted">标准: {{ ind.standard }}</small>{% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 详细数据 -->
+{% if result_data.details %}
+<div class="card mb-3">
+    <div class="card-header"><i class="fas fa-table me-1"></i>详细财务数据</div>
+    <div class="card-body">
+        <div class="row">
+            {% for key, val in result_data.details.items() %}
+            <div class="col-md-3 col-6 mb-2">
+                <div class="p-3 border rounded text-center">
+                    <div class="text-muted small">{{ key }}</div>
+                    <div class="fw-bold">{{ val }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- 建议 -->
+{% if result_data.suggestions and result_data.suggestions|length > 0 %}
+<div class="card mb-3">
+    <div class="card-header"><i class="fas fa-lightbulb text-warning me-1"></i>优化建议</div>
+    <div class="card-body">
+        <ul class="mb-0">
+            {% for s in result_data.suggestions %}
+            <li class="py-1">{{ s }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+{% endif %}
+
+<!-- 资产负债和利润关键数据 -->
+<div class="row g-3">
+    {% if result_data.balance_data %}
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header"><i class="fas fa-balance-scale me-1"></i>资产负债表关键数据</div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>项目</th><th class="text-end">金额</th></tr></thead>
+                    <tbody>
+                        {% for key in ['流动资产合计','非流动资产合计','资产总计','流动负债合计','非流动负债合计','负债合计','所有者权益合计'] %}
+                        <tr>
+                            <td>{{ key }}</td>
+                            <td class="text-end">{{ '%0.2f'|format(result_data.balance_data.get(key, 0)) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% if result_data.income_data %}
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header"><i class="fas fa-chart-line me-1"></i>利润表关键数据</div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>项目</th><th class="text-end">金额</th></tr></thead>
+                    <tbody>
+                        {% for key in ['营业收入','营业成本','毛利','销售费用','管理费用','财务费用','营业利润','利润总额','净利润'] %}
+                        <tr>
+                            <td>{{ key }}</td>
+                            <td class="text-end">{{ '%0.2f'|format(result_data.income_data.get(key, 0)) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% else %}
+<div class="alert alert-warning">
+    <i class="fas fa-exclamation-triangle me-2"></i>测评数据无法解析
+</div>
+{% endif %}
+
+{% endblock %}

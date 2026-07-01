@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+{% block title %}常用业务场景{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center flex-wrap">
+        <h4><i class="fas fa-magic me-2"></i>常用业务场景</h4>
+        <div>
+            <a href="javascript:void(0)" class="btn btn-primary btn-sm" onclick="showAddForm()"><i class="fas fa-plus"></i> 新增场景</a>
+        </div>
+    </div>
+    <p class="text-muted mt-1 mb-0">
+        <i class="fas fa-info-circle"></i>
+        设置企业常用业务场景及借贷科目，录入凭证时可快速选择自动填入分录。内置场景为默认规则，可修改不可删除。
+    </p>
+</div>
+
+{% for cat in category_list %}
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-folder me-1"></i>{{ cat }}</span>
+        <span class="badge bg-secondary">{{ groups[cat]|length }}个场景</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+            <thead>
+                <tr>
+                    <th style="width:5%"></th>
+                    <th style="width:18%">场景名称</th>
+                    <th style="width:22%">匹配关键词</th>
+                    <th style="width:15%">借方科目</th>
+                    <th style="width:15%">贷方科目</th>
+                    <th style="width:8%">常用</th>
+                    <th style="width:10%">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in groups[cat] %}
+                <tr>
+                    <td class="text-center">{{ s.icon }}</td>
+                    <td>
+                        <strong>{{ s.name }}</strong>
+                        {% if s.is_builtin %}<span class="badge bg-info ms-1" style="font-size:12px">默认</span>{% endif %}
+                    </td>
+                    <td><code style="font-size:13px">{{ s.keywords }}</code></td>
+                    <td>{{ s.debit_code }} {{ s.debit_name or '' }}</td>
+                    <td>{{ s.credit_code }} {{ s.credit_name or '' }}</td>
+                    <td class="text-center">{% if s.is_frequent %}<i class="fas fa-star text-warning"></i>{% endif %}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary py-0" onclick="showEditForm({{ s.id }})"><i class="fas fa-edit"></i></button>
+                        {% if not s.is_builtin %}
+                        <button class="btn btn-sm btn-outline-danger py-0" onclick="deleteScene({{ s.id }})"><i class="fas fa-trash"></i></button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-info">暂无业务场景，<a href="javascript:void(0)" onclick="showAddForm()">点击新增</a></div>
+{% endfor %}
+
+<!-- 新增/编辑弹窗 -->
+<div class="modal fade" id="sceneModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTitle"><i class="fas fa-magic me-1"></i>新增场景</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="sceneForm">
+                <div class="modal-body">
+                    <input type="hidden" name="scene_id" id="sceneId" value="0">
+                    <div class="mb-3">
+                        <label class="form-label">场景名称 *</label>
+                        <input name="name" id="fName" class="form-control" required placeholder="如：差旅报销">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">匹配关键词</label>
+                        <input name="keywords" id="fKeywords" class="form-control" placeholder="多个关键词用逗号分隔">
+                        <small class="text-muted">摘要中包含任一关键词时自动匹配此场景</small>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label">借方科目 *</label>
+                            <select name="debit_account_id" id="fDebit" class="form-select" required>
+                                <option value="">选择借方科目</option>
+                                {% for a in accounts %}
+                                <option value="{{ a.id }}">{{ a.code }} {{ a.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">贷方科目 *</label>
+                            <select name="credit_account_id" id="fCredit" class="form-select" required>
+                                <option value="">选择贷方科目</option>
+                                {% for a in accounts %}
+                                <option value="{{ a.id }}">{{ a.code }} {{ a.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label">分类</label>
+                            <select name="category" id="fCategory" class="form-select">
+                                <option value="收入类">收入类</option>
+                                <option value="费用类">费用类</option>
+                                <option value="工资福利">工资福利</option>
+                                <option value="研发资产">研发资产</option>
+                                <option value="税务银行">税务银行</option>
+                                <option value="借款往来">借款往来</option>
+                                <option value="权益其他">权益其他</option>
+                                <option value="其他">其他</option>
+                            </select>
+                        </div>
+                        <div class="col-3">
+                            <label class="form-label">图标</label>
+                            <select name="icon" id="fIcon" class="form-select">
+                                <option value="📄">📄</option>
+                                <option value="💰">💰</option>
+                                <option value="💵">💵</option>
+                                <option value="🏦">🏦</option>
+                                <option value="📊">📊</option>
+                            </select>
+                        </div>
+                        <div class="col-3 d-flex align-items-end">
+                            <div class="form-check">
+                                <input type="checkbox" name="is_frequent" id="fFrequent" value="1" class="form-check-input">
+                                <label class="form-check-label" for="fFrequent">常用场景</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> 保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function showAddForm() {
+    document.getElementById('modalTitle').innerHTML = '<i class="fas fa-plus me-1"></i>新增场景';
+    document.getElementById('sceneId').value = '0';
+    document.getElementById('fName').value = '';
+    document.getElementById('fKeywords').value = '';
+    document.getElementById('fDebit').value = '';
+    document.getElementById('fCredit').value = '';
+    document.getElementById('fCategory').value = '费用类';
+    document.getElementById('fIcon').value = '📄';
+    document.getElementById('fFrequent').checked = false;
+    var modal = new bootstrap.Modal(document.getElementById('sceneModal'));
+    modal.show();
+}
+function showEditForm(id) {
+    document.getElementById('modalTitle').innerHTML = '<i class="fas fa-edit me-1"></i>编辑场景';
+    var row = event.target.closest('tr');
+    var cells = row.cells;
+    var name = cells[1].textContent.replace('默认', '').trim();
+    var keywords = cells[2].textContent.trim();
+    var debitText = cells[3].textContent.trim();
+    var debitCode = debitText.split(' ')[0];
+    var creditText = cells[4].textContent.trim();
+    var creditCode = creditText.split(' ')[0];
+    var isFreq = cells[5].querySelector('.fa-star') !== null;
+    document.getElementById('sceneId').value = id;
+    document.getElementById('fName').value = name;
+    document.getElementById('fKeywords').value = keywords;
+    document.getElementById('fFrequent').checked = isFreq;
+    var debitSel = document.getElementById('fDebit');
+    for (var i = 0; i < debitSel.options.length; i++) {
+        if (debitSel.options[i].text.startsWith(debitCode)) { debitSel.value = debitSel.options[i].value; break; }
+    }
+    var creditSel = document.getElementById('fCredit');
+    for (var i = 0; i < creditSel.options.length; i++) {
+        if (creditSel.options[i].text.startsWith(creditCode)) { creditSel.value = creditSel.options[i].value; break; }
+    }
+    var modal = new bootstrap.Modal(document.getElementById('sceneModal'));
+    modal.show();
+}
+
+// 弹窗打开时初始化科目可搜索下拉
+document.getElementById('sceneModal').addEventListener('shown.bs.modal', function() {
+    if (typeof initAccountSelects === 'function') {
+        initAccountSelects(document.getElementById('sceneModal'));
+    }
+});
+
+document.getElementById('sceneForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const id = document.getElementById('sceneId').value;
+    const fd = new FormData(this);
+    // is_frequent 勾选才传值
+    if (!document.getElementById('fFrequent').checked) {
+        fd.set('is_frequent', '0');
+    }
+    const url = id === '0' ? '/scenes/add' : '/scenes/' + id + '/edit';
+    fetch(url, {method:'POST', body: fd})
+        .then(r => r.json())
+        .then(d => {
+            showToast(d.msg, d.success ? 'success' : 'danger');
+            if (d.success) { bootstrap.Modal.getInstance(document.getElementById('sceneModal')).hide(); location.reload(); }
+        });
+});
+
+function deleteScene(id) {
+    showConfirm('确认删除此场景？', function() {
+        fetch('/scenes/' + id + '/delete', {method:'POST'})
+            .then(r => r.json())
+            .then(d => { showToast(d.msg, d.success ? 'success' : 'danger'); if (d.success) location.reload(); });
+    });
+}
+</script>
+{% endblock %}

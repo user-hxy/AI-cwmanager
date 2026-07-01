@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}凭证审核{% endblock %}
+{% block content %}
+{% if msg %}<div class="alert alert-info alert-dismissible fade show"><i class="fas fa-info-circle me-1"></i>{{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>{% endif %}
+<div class="page-header">
+    <h4><i class="fas fa-check-double me-2"></i>待审核凭证</h4>
+</div>
+{% if vouchers %}
+<form method="post" id="batchForm">
+<div class="table-responsive">
+    <table class="table table-hover">
+        <thead><tr>
+            <th><input type="checkbox" id="selectAll" onchange="toggleAll()"></th>
+            <th>凭证号</th><th>日期</th><th>摘要</th><th>制单人</th><th>操作</th>
+        </tr></thead>
+        <tbody>
+            {% for v in vouchers %}
+            <tr>
+                <td><input type="checkbox" name="voucher_ids" value="{{ v.id }}" class="voucher-check"></td>
+                <td><code>{{ v.voucher_no }}</code></td>
+                <td>{{ v.date }}</td>
+                <td class="text-truncate" style="max-width:200px">{{ v.summary or '-' }}</td>
+                <td>{{ v.creator.display_name if v.creator else '-' }}</td>
+                <td>
+                    <button type="button" class="btn btn-sm btn-success" onclick="approveOne({{ v.id }})">
+                        <i class="fas fa-check"></i> 通过
+                    </button>
+                    <button type="button" class="btn btn-sm btn-danger" onclick="rejectOne({{ v.id }})">
+                        <i class="fas fa-times"></i> 驳回
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<div class="mt-2">
+    <button type="submit" class="btn btn-success" formaction="/vouchers/batch-approve"><i class="fas fa-check-double"></i> 批量通过</button>
+</div>
+</form>
+{% else %}
+<div class="text-center text-muted py-5">
+    <i class="fas fa-check-circle fa-3x mb-3"></i>
+    <p>暂无待审核凭证</p>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+function approveOne(id) {
+    showConfirm('确认通过此凭证？', function() {
+        fetch('/vouchers/' + id + '/approve', {method:'POST'}).then(()=>location.reload());
+    });
+}
+function rejectOne(id) {
+    const reason = prompt('请输入驳回原因：');
+    if(reason) {
+        fetch('/vouchers/' + id + '/reject', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'reason='+encodeURIComponent(reason)}).then(()=>location.reload());
+    }
+}
+function toggleAll() {
+    document.querySelectorAll('.voucher-check').forEach(c=>c.checked=document.getElementById('selectAll').checked);
+}
+</script>
+{% endblock %}

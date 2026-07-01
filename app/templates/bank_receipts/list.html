@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}银行回单{% endblock %}
+{% block content %}
+{% if msg %}<div class="alert alert-info alert-dismissible fade show"><i class="fas fa-info-circle me-1"></i>{{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>{% endif %}
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center flex-wrap">
+        <h4><i class="fas fa-university me-2"></i>银行回单</h4>
+        {% if user.role in ('inputer','company_admin','super_admin') %}
+        <a href="/bank-receipts/import" class="btn btn-primary btn-sm"><i class="fas fa-upload"></i> 导入回单</a>
+        {% endif %}
+    </div>
+    <form class="d-flex align-items-center gap-2 mt-2 flex-wrap">
+        <label class="small text-muted">日期：</label>
+        <input type="date" name="date_from" value="{{ date_from }}" class="form-control form-control-sm" style="width:auto">
+        <span class="text-muted">~</span>
+        <input type="date" name="date_to" value="{{ date_to }}" class="form-control form-control-sm" style="width:auto">
+        <button type="submit" class="btn btn-sm btn-outline-primary"><i class="fas fa-search"></i> 查询</button>
+    </form>
+</div>
+<div class="table-responsive">
+    <table class="table table-hover table-sm">
+        <thead><tr>
+            <th>日期</th><th>付款人</th><th>收款人</th><th>金额</th><th>用途</th>
+            <th>置信度</th><th>状态</th><th>关联凭证</th><th>操作</th>
+        </tr></thead>
+        <tbody>
+            {% for r in receipts %}
+            <tr>
+                <td>{{ r.transaction_date }}</td>
+                <td class="text-truncate" style="max-width:120px">{{ r.payer_name or '-' }}</td>
+                <td class="text-truncate" style="max-width:120px">{{ r.payee_name or '-' }}</td>
+                <td class="text-{{ 'danger' if r.amount<0 else 'success' }} fw-bold">{{ '%.2f'|format(r.amount) }}</td>
+                <td class="text-truncate" style="max-width:150px">{{ r.remark or '-' }}</td>
+                <td>
+                    <span class="badge bg-{{ 'success' if r.parse_confidence=='高' else 'warning' if r.parse_confidence=='中' else 'danger' }}">
+                        {{ r.parse_confidence }}
+                    </span>
+                </td>
+                <td>
+                    <span class="badge bg-{{ 'secondary' if r.status=='unprocessed' else 'success' }}">
+                        {{ '未处理' if r.status=='unprocessed' else '已生成凭证' }}
+                    </span>
+                </td>
+                <td>
+                    {% if r.voucher_id and vouchers.get(r.voucher_id) %}
+                    <a href="/vouchers/" class="text-info">
+                        <code>{{ vouchers[r.voucher_id].voucher_no }}</code>
+                    </a>
+                    {% else %}
+                    <span class="text-muted">-</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="/bank-receipts/{{ r.id }}/file" class="btn btn-sm btn-outline-info" target="_blank" title="查看回单原件">
+                        <i class="fas fa-file-pdf"></i>
+                    </a>
+                    {% if r.status == 'unprocessed' and user.role in ('inputer','company_admin','super_admin') %}
+                    <a href="/bank-receipts/{{ r.id }}/create-voucher" class="btn btn-sm btn-success" title="创建凭证">
+                        <i class="fas fa-file-invoice"></i>
+                    </a>
+                    {% endif %}
+                    {% if r.status == 'processed' and user.role in ('inputer','company_admin','super_admin') %}
+                    <a href="/bank-receipts/{{ r.id }}/create-voucher?regenerate=1" class="btn btn-sm btn-warning" title="重新生成凭证">
+                        <i class="fas fa-sync-alt"></i>
+                    </a>
+                    {% endif %}
+                    {% if user.role in ('company_admin','super_admin') %}
+                    <form action="/bank-receipts/{{ r.id }}/delete" method="post" class="d-inline" onsubmit="confirmFormSubmit(event, '确定删除此回单吗？')">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" title="删除">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="9" class="text-center text-muted py-4">暂无银行回单</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

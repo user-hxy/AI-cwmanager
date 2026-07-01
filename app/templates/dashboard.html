@@ -1,0 +1,320 @@
+{% extends "base.html" %}
+{% block title %}工作台 - 财务管理系统{% endblock %}
+{% block content %}
+
+{% if user.role == 'super_admin' %}
+<!-- ===== 超级管理员总览 ===== -->
+<div class="page-header">
+    <h4><i class="fas fa-chart-pie me-2"></i>管理平台总览</h4>
+    <p class="text-muted">系统运行状态 · {{ now }}</p>
+</div>
+<div class="row g-3 mb-4">
+    <div class="col-md-3"><div class="stat-card"><div class="stat-icon bg-primary"><i class="fas fa-building"></i></div><div class="stat-body"><div class="stat-value">{{ company_count }}</div><div class="stat-label">注册公司</div></div></div></div>
+    <div class="col-md-3"><div class="stat-card"><div class="stat-icon bg-success"><i class="fas fa-users"></i></div><div class="stat-body"><div class="stat-value">{{ user_count }}</div><div class="stat-label">系统用户</div></div></div></div>
+    <div class="col-md-3"><div class="stat-card"><div class="stat-icon bg-info"><i class="fas fa-file-invoice"></i></div><div class="stat-body"><div class="stat-value">{{ voucher_count }}</div><div class="stat-label">全部凭证</div></div></div></div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon {{ 'bg-danger' if expired_count > 0 else 'bg-warning' if expiring_count > 0 else 'bg-secondary' }}">
+                <i class="fas fa-clock"></i>
+            </div>
+            <div class="stat-body">
+                <div class="stat-value {{ 'text-danger' if expired_count > 0 else 'text-warning' if expiring_count > 0 else '' }}">
+                    {{ expired_count }}/{{ expiring_count }}
+                </div>
+                <div class="stat-label">已过期/将到期</div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="card">
+    <div class="card-header"><i class="fas fa-list me-1"></i>公司列表</div>
+    <div class="table-responsive">
+        <table class="table table-hover table-sm mb-0">
+            <thead><tr>
+                <th>公司名称</th><th>编码</th><th>启用</th><th>管理员</th>
+                <th class="text-center">凭证</th><th class="text-center">已过账</th><th class="text-center">草稿</th>
+                <th>当前状态</th><th>账套时长</th><th>授权</th><th>操作</th>
+            </tr></thead>
+            <tbody>
+                {% for c in company_list %}
+                <tr class="{{ 'table-danger' if c.is_expired else 'table-warning' if c.expiry_info and '过期' not in c.expiry_info else '' }}">
+                    <td><a href="/companies/{{ c.id }}">{{ c.name }}</a></td>
+                    <td><code>{{ c.code }}</code></td>
+                    <td>{{ c.start_date or '-' }}</td>
+                    <td>{{ c.admin_name or '-' }}</td>
+                    <td class="text-center"><span class="badge bg-info">{{ c.voucher_count }}</span></td>
+                    <td class="text-center"><span class="badge bg-success">{{ c.v_posted }}</span></td>
+                    <td class="text-center"><span class="badge bg-warning">{{ c.v_draft }}</span></td>
+                    <td>
+                        {% if '已结账' in c.current_status %}<span class="badge bg-success"><i class="fas fa-lock me-1"></i>{{ c.current_status }}</span>
+                        {% elif '已结转' in c.current_status %}<span class="badge bg-info"><i class="fas fa-exchange-alt me-1"></i>{{ c.current_status }}</span>
+                        {% elif '记账至' in c.current_status %}<span class="badge bg-primary"><i class="fas fa-book me-1"></i>{{ c.current_status }}</span>
+                        {% else %}<span class="badge bg-secondary">{{ c.current_status }}</span>{% endif %}
+                    </td>
+                    <td>{% if c.closed_range %}<small class="text-nowrap">{{ c.closed_range }}</small>{% else %}<span class="text-muted">-</span>{% endif %}</td>
+                    <td>
+                        {% if c.is_expired %}
+                        <span class="badge bg-danger"><i class="fas fa-exclamation-circle"></i> 已过期</span>
+                        {% elif c.expiry_info %}
+                        <span class="badge bg-warning text-dark"><i class="fas fa-clock"></i> {{ c.expiry_info }}</span>
+                        {% elif c.expiry_date %}
+                        <span class="badge bg-info">{{ c.expiry_date }}</span>
+                        {% else %}
+                        <span class="badge bg-success">永久</span>
+                        {% endif %}
+                    </td>
+                    <td><a href="/companies/{{ c.id }}" class="btn btn-sm btn-outline-info"><i class="fas fa-eye"></i></a>
+                        <a href="/companies/edit/{{ c.id }}" class="btn btn-sm btn-outline-primary"><i class="fas fa-edit"></i></a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% elif show_setup %}
+<!-- ===== 企业初始化向导 ===== -->
+<div class="page-header"><h4><i class="fas fa-rocket me-2"></i>欢迎使用财务管理系统</h4><p class="text-muted">{{ company.name }}</p></div>
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card text-center">
+            <div class="card-body py-5">
+                <i class="fas fa-cogs fa-4x text-primary mb-4"></i>
+                <h5 class="mb-3">企业首次使用需要完成期初设置</h5>
+                <p class="text-muted mb-4">请设置各科目的期初余额，设置完成后即可开始日常记账。</p>
+                <div class="d-flex justify-content-center gap-3">
+                    <a href="/setup/" class="btn btn-primary btn-lg"><i class="fas fa-cog"></i> 去设置期初余额</a>
+                    <button class="btn btn-outline-secondary btn-lg" onclick="skipSetup()"><i class="fas fa-forward"></i> 跳过，先看看</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<!-- ===== 公司用户工作台 ===== -->
+{% set vc = data.get('voucher_counts', {}) %}
+{% set is_closed = data.get('is_closed', false) %}
+{% set is_carried = data.get('is_carried_forward', false) %}
+{% set is_inputer = user.role in ('inputer','company_admin') %}
+{% set is_reviewer = user.role in ('reviewer', 'company_admin') %}
+{% set is_admin = user.role == 'company_admin' %}
+{% set is_viewer = user.role == 'viewer' %}
+
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center flex-wrap">
+        <div>
+            <h4 class="mb-1"><i class="fas fa-chart-pie me-2"></i>工作台</h4>
+            <p class="text-muted mb-0">{{ company.name }} · 会计期间: <strong>{{ period }}</strong>
+            {% if closed_range %}&nbsp;&nbsp;<span class="badge bg-light text-dark border"><i class="fas fa-calendar-alt me-1"></i>账套: {{ closed_range }}</span>{% endif %}
+            </p>
+        </div>
+        <div class="mt-2 mt-md-0">
+            <form method="get" class="d-inline-block">
+                <input type="month" name="period" value="{{ period }}" class="form-control form-control-sm d-inline-block w-auto" onchange="this.form.submit()">
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 授权到期提醒（非 super_admin，非永久授权） -->
+{% if company and company.expiry_type == 'fixed' and user.role != 'super_admin' %}
+{% if company_expired %}
+<div class="alert alert-danger py-3 mb-3" style="font-size:24px;text-align:center;font-weight:bold;border:2px solid #dc3545;border-radius:12px">
+    <i class="fas fa-exclamation-triangle me-2"></i>授权已过期（{{ company.expiry_date }}）！系统仅可查看历史数据。
+</div>
+{% else %}
+<div class="alert alert-info py-3 mb-3" style="font-size:24px;text-align:center;font-weight:bold;border:2px solid #4a9eff;border-radius:12px">
+    <i class="fas fa-clock me-2"></i>授权使用期限至：{{ company.expiry_date }}
+</div>
+{% endif %}
+{% endif %}
+
+<!-- 草稿提醒 -->
+{% set draft_periods = data.get('draft_periods', []) %}
+{% if draft_periods and is_inputer %}
+<div class="mb-3">
+    {% for dp in draft_periods %}{% if dp.c > 0 %}
+    <a href="/vouchers/?period={{ dp.p }}&status=draft" class="badge bg-warning text-decoration-none me-1 fs-6 px-3 py-2">
+        <i class="fas fa-file-invoice"></i> {{ dp.p }} 有 {{ dp.c }} 张草稿
+    </a>
+    {% endif %}{% endfor %}
+</div>
+{% endif %}
+
+<!-- 待审核提醒（审核员专用） -->
+{% if is_reviewer and vc.get('pending', 0) > 0 %}
+<div class="mb-3">
+    <a href="/vouchers/review" class="badge bg-danger text-decoration-none fs-6 px-3 py-2">
+        <i class="fas fa-clock"></i> {{ vc.get('pending', 0) }} 张凭证待审核
+    </a>
+</div>
+{% endif %}
+
+<!-- ===== 流程状态条 ===== -->
+{% if not is_viewer %}
+<div class="workflow-steps">
+    {% set steps = [
+        {'name':'凭证录入','icon':'fa-file-invoice','key':'draft','roles':['inputer','company_admin'],'link':'/vouchers/add'},
+        {'name':'提交审核','icon':'fa-paper-plane','key':'pending','roles':['inputer','company_admin'],'link':'/vouchers/?status=pending'},
+        {'name':'凭证审核','icon':'fa-check-double','key':'review','roles':['reviewer','company_admin'],'link':'/vouchers/review'},
+        {'name':'凭证过账','icon':'fa-check-circle','key':'approved','roles':['inputer','company_admin'],'link':'/vouchers/batch-post?period='+period},
+        {'name':'损益结转','icon':'fa-exchange-alt','key':'carry','roles':['inputer','company_admin'],'link':'#'},
+        {'name':'月末结账','icon':'fa-lock','key':'close','roles':['inputer','company_admin','reviewer'],'link':'#'},
+    ] %}
+    {% set has_draft = vc.get('draft', 0) > 0 %}
+    {% set has_pending = vc.get('pending', 0) > 0 %}
+    {% set has_approved = vc.get('approved', 0) > 0 %}
+    {% set has_posted = vc.get('posted', 0) > 0 %}
+    {% for step in steps %}
+        {% if step.key == 'draft' %}
+            {% set s = 'completed' if has_draft or has_pending or has_approved or has_posted or is_closed else 'locked' %}
+            {% set s = 'active' if user.role in step.roles and not has_draft and not has_pending and not has_approved and not has_posted and not is_closed else s %}
+        {% elif step.key == 'pending' %}
+            {% set s = 'active' if has_draft and user.role in step.roles else 'locked' %}
+            {% set s = 'completed' if has_pending or has_approved or has_posted or is_closed else s %}
+        {% elif step.key == 'review' %}
+            {% set s = 'active' if has_pending and user.role in step.roles else 'locked' %}
+            {% set s = 'completed' if has_approved or has_posted or is_closed else s %}
+        {% elif step.key == 'approved' %}
+            {% set s = 'active' if has_approved and user.role in step.roles else 'locked' %}
+            {% set s = 'completed' if has_posted or is_closed else s %}
+        {% elif step.key == 'carry' %}
+            {% set s = 'active' if has_posted and not is_carried and user.role in step.roles else 'locked' %}
+            {% set s = 'completed' if is_carried or is_closed else s %}
+        {% elif step.key == 'close' %}
+            {% set s = 'active' if is_carried and not is_closed and user.role in step.roles else 'locked' %}
+            {% set s = 'completed' if is_closed else s %}
+        {% endif %}
+    <div class="step-item {{ s }}">
+        <div class="step-icon"><i class="fas {{ step.icon }}"></i></div>
+        <div class="step-name">{{ step.name }}</div>
+    </div>
+    {% if not loop.last %}<div class="step-connector {{ 'completed' if loop.index <= 4 and (has_posted or is_closed) else '' }}"></div>{% endif %}
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- ===== 统计卡片 ===== -->
+<div class="row g-3 mt-3">
+    <div class="col-6 col-md-3">
+        <a href="/vouchers/?status=draft" class="text-decoration-none">
+        <div class="stat-card"><div class="stat-icon bg-primary"><i class="fas fa-file-invoice"></i></div><div class="stat-body"><div class="stat-value">{{ vc.get('draft', 0) }}</div><div class="stat-label">草稿凭证</div></div></div></a>
+    </div>
+    <div class="col-6 col-md-3">
+        <a href="/vouchers/?status=pending" class="text-decoration-none">
+        <div class="stat-card"><div class="stat-icon bg-warning"><i class="fas fa-clock"></i></div><div class="stat-body"><div class="stat-value">{{ vc.get('pending', 0) }}</div><div class="stat-label">待审核</div></div></div></a>
+    </div>
+    <div class="col-6 col-md-3">
+        <a href="/vouchers/?status=posted" class="text-decoration-none">
+        <div class="stat-card"><div class="stat-icon bg-success"><i class="fas fa-check-double"></i></div><div class="stat-body"><div class="stat-value">{{ vc.get('posted', 0) }}</div><div class="stat-label">已过账</div></div></div></a>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card"><div class="stat-icon bg-dark"><i class="fas {{ 'fa-lock text-success' if is_closed else 'fa-unlock' }}"></i></div><div class="stat-body"><div class="stat-value">{{ '已结账' if is_closed else '未结账' }}</div><div class="stat-label">期间状态</div></div></div>
+    </div>
+</div>
+
+<!-- ===== 快捷操作 ===== -->
+<div class="mt-4">
+    <div class="card">
+        <div class="card-header"><i class="fas fa-bolt me-1"></i>快捷操作</div>
+        <div class="card-body">
+            <div class="row g-2">
+                {% if is_inputer %}
+                <div class="col-6 col-md-3"><a href="/bank-receipts/import" class="btn btn-outline-primary w-100"><i class="fas fa-upload"></i> 导入回单</a></div>
+                <div class="col-6 col-md-3"><a href="/invoices/import" class="btn btn-outline-info w-100"><i class="fas fa-file-invoice"></i> 导入发票</a></div>
+                <div class="col-6 col-md-3"><a href="/vouchers/add" class="btn btn-outline-success w-100"><i class="fas fa-plus"></i> 新增凭证</a></div>
+                <div class="col-6 col-md-3"><a href="/vouchers/copy" class="btn btn-outline-secondary w-100"><i class="fas fa-copy"></i> 复制凭证</a></div>
+                {% endif %}
+                {% if is_reviewer %}
+                <div class="col-6 col-md-3"><a href="/vouchers/review" class="btn btn-outline-warning w-100"><i class="fas fa-check-double"></i> 凭证审核</a></div>
+                {% endif %}
+                <div class="col-6 col-md-3"><a href="/vouchers/batch-post?period={{ period }}" class="btn btn-outline-primary w-100"><i class="fas fa-check-circle"></i> 批量过账</a></div>
+                <div class="col-6 col-md-3"><a href="/reports/" class="btn btn-outline-info w-100"><i class="fas fa-chart-bar"></i> 报表中心</a></div>
+                {% if is_admin %}
+                <div class="col-6 col-md-3"><a href="/scenes/" class="btn btn-outline-secondary w-100"><i class="fas fa-magic"></i> 业务场景</a></div>
+                {% endif %}
+                {% if is_viewer %}
+                <div class="col-6 col-md-3"><a href="/reports/" class="btn btn-outline-info w-100"><i class="fas fa-chart-bar"></i> 报表中心</a></div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== 期末处理（非viewer可见） ===== -->
+{% if not is_viewer %}
+<div class="mt-3">
+    <div class="card">
+        <div class="card-header"><i class="fas fa-check-circle me-1"></i>期末处理</div>
+        <div class="card-body">
+            <div class="row g-2">
+                {% if is_inputer %}
+                {% if not is_carried %}
+                <div class="col-md-3"><button class="btn btn-primary w-100" onclick="carryForward()"><i class="fas fa-exchange-alt"></i> 损益结转</button></div>
+                {% endif %}
+                {% if is_carried and not is_closed %}
+                <div class="col-md-3"><button class="btn btn-primary w-100" onclick="monthEndClose()"><i class="fas fa-lock"></i> 月末结账</button></div>
+                {% endif %}
+                {% endif %}
+                {% if is_admin %}
+                {% if is_carried and not is_closed %}
+                <div class="col-md-3"><button class="btn btn-outline-danger w-100" onclick="reverseCarryForward()"><i class="fas fa-undo"></i> 反结转</button></div>
+                {% endif %}
+                {% if is_closed %}
+                <div class="col-md-3"><button class="btn btn-outline-danger w-100" onclick="reverseClose()"><i class="fas fa-unlock"></i> 反结账</button></div>
+                {% endif %}
+                {% endif %}
+            </div>
+            <small class="text-muted mt-2 d-block">
+                <i class="fas fa-info-circle"></i> 处理顺序：凭证过账 → 损益结转 → 月末结账
+                {% if is_carried %}<span class="text-success ms-2"><i class="fas fa-check"></i> 已结转</span>{% endif %}
+                {% if is_closed %}<span class="text-success ms-2"><i class="fas fa-check"></i> 已结账</span>{% endif %}
+            </small>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- ===== 各角色可见操作对照（可折叠） ===== -->
+<div class="mt-3">
+    <div class="card">
+        <div class="card-header" style="cursor:pointer" onclick="togglePermTable()">
+            <i class="fas fa-key me-1"></i>操作权限说明 <i class="fas fa-chevron-down float-end" id="permToggle"></i>
+        </div>
+        <div class="card-body p-2" id="permTable" style="display:none">
+            <div class="table-responsive">
+                <table class="table table-sm table-borderless mb-0" style="font-size:16px">
+                    <thead><tr class="text-muted">
+                        <th>操作节点</th><th class="text-center">录入员</th><th class="text-center">审核员</th><th class="text-center">查看者</th><th class="text-center">公司管理员</th>
+                    </tr></thead>
+                    <tbody>
+                        <tr><td>导入回单/发票</td><td class="text-center text-success">✓</td><td class="text-center text-muted">-</td><td class="text-center text-muted">-</td><td class="text-center text-success">✓</td></tr>
+                        <tr><td>新增/编辑凭证</td><td class="text-center text-success">✓</td><td class="text-center text-muted">-</td><td class="text-center text-muted">-</td><td class="text-center text-success">✓</td></tr>
+                        <tr><td>凭证审核</td><td class="text-center text-muted">-</td><td class="text-center text-success">✓</td><td class="text-center text-muted">-</td><td class="text-center text-success">✓</td></tr>
+                        <tr><td>凭证过账</td><td class="text-center text-success">✓</td><td class="text-center text-muted">-</td><td class="text-center text-muted">-</td><td class="text-center text-success">✓</td></tr>
+                        <tr><td>删除凭证</td><td class="text-center text-muted">-</td><td class="text-center text-success">✓</td><td class="text-center text-muted">-</td><td class="text-center text-success">✓</td></tr>
+                        <tr><td>损益结转</td><td class="text-center text-success">✓</td><td class="text-center text-muted">-</td><td class="text-center text-muted">-</td><td class="text-center text-success">✓</td></tr>
+                        <tr><td>月末结账</td><td class="text-center text-success">✓</td><td class="text-center text-success">✓</td><td class="text-center text-muted">-</td><td class="text-center text-success">✓</td></tr>
+                        <tr><td>反结转/反结账</td><td class="text-center text-muted">-</td><td class="text-center text-muted">-</td><td class="text-center text-muted">-</td><td class="text-center text-success">✓</td></tr>
+                        <tr><td>查看报表</td><td class="text-center text-success">✓</td><td class="text-center text-success">✓</td><td class="text-center text-success">✓</td><td class="text-center text-success">✓</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+var closingPeriod = '{{ period }}';
+function carryForward(){showConfirm('确认执行损益结转？系统将自动生成结转凭证。',function(){var fd=new FormData();fd.append('period',closingPeriod);fetch('/closing/carry-forward',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{showToast(d.msg,d.success?'success':'danger');if(d.success)location.reload();});});}
+function monthEndClose(){showConfirm('确认执行月末结账？结账后将锁定本期数据。',function(){var fd=new FormData();fd.append('period',closingPeriod);fetch('/closing/month-end-close',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{showToast(d.msg,d.success?'success':'danger');if(d.success){setTimeout(function(){window.location.href='/dashboard';},500);}});});}
+function reverseCarryForward(){var reason=prompt('请输入反结转原因（必填）：');if(!reason)return;showConfirm('反结转将删除结转凭证，确认执行？',function(){var fd=new FormData();fd.append('reason',reason);fd.append('period',closingPeriod);fetch('/closing/reverse-carry-forward',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{showToast(d.msg,d.success?'success':'danger');if(d.success)location.reload();});});}
+function reverseClose(){var reason=prompt('请输入反结账原因（必填）：');if(!reason)return;showConfirm('反结账将解锁期间，确认执行？',function(){var fd=new FormData();fd.append('reason',reason);fd.append('period',closingPeriod);fetch('/closing/reverse-close',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{showToast(d.msg,d.success?'success':'danger');if(d.success)location.reload();});});}
+function togglePermTable(){var t=document.getElementById('permTable'),i=document.getElementById('permToggle');if(t.style.display==='none'){t.style.display='';i.className='fas fa-chevron-up float-end';}else{t.style.display='none';i.className='fas fa-chevron-down float-end';}}
+</script>
+{% endblock %}

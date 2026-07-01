@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}{{ '编辑模板' if edit_mode else '新增模板' }}{% endblock %}
+{% block content %}
+<div class="page-header"><h4><i class="fas fa-{{ 'edit' if edit_mode else 'plus' }} me-2"></i>{{ '编辑解析模板' if edit_mode else '新增解析模板' }}</h4></div>
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-body">
+                {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+                <form method="post" action="{{ '/bank-templates/' + template.id|string + '/edit' if edit_mode else '/bank-templates/add' }}">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">银行名称 *</label>
+                            <input name="bank_name" class="form-control" required
+                                   value="{{ template.bank_name if edit_mode else '' }}"
+                                   placeholder="如：工商银行、建设银行">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">模板名称 *</label>
+                            <input name="name" class="form-control" required
+                                   value="{{ template.name if edit_mode else '' }}"
+                                   placeholder="如：工行电子回单V1">
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label">正则提取规则 (JSON)</label>
+                            <textarea name="regex_rules" class="form-control" rows="6"
+                                      placeholder='{"payer":"付款人[：:]\\s*([^\\s]+)","amount":"金额[：:]\\s*([\\d.]+)"}'>{{ template.regex_rules if edit_mode else '' }}</textarea>
+                            <small class="text-muted">JSON格式，键为字段名(payer/payee/amount/date/remark/fee)，值为正则表达式</small>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label">科目映射规则 (JSON)</label>
+                            <textarea name="mapping_rules" class="form-control" rows="4"
+                                      placeholder='{"办公用品":"5602","差旅费":"5602","工资":"2211"}'>{{ template.mapping_rules if edit_mode else '' }}</textarea>
+                            <small class="text-muted">JSON格式，键为关键词，值为科目编码</small>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> {{ '保存' if edit_mode else '创建' }}</button>
+                        <a href="/bank-templates/" class="btn btn-secondary ms-2">取消</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

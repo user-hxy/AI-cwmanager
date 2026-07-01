@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}科目管理{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center flex-wrap">
+        <h4><i class="fas fa-book me-2"></i>科目表</h4>
+        <div>
+            <span class="text-muted me-2">共 {{ accounts|length }} 个科目</span>
+            <a href="/accounts/add" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> 新增科目</a>
+        </div>
+    </div>
+</div>
+
+<!-- 标签页导航 -->
+<ul class="nav nav-tabs account-tabs" id="accountTabs" role="tablist">
+    {% set cat_icons = {'资产':'fa-building','负债':'fa-credit-card','权益':'fa-chart-pie','成本':'fa-cogs','损益':'fa-chart-line'} %}
+    {% for cat in categories %}
+    <li class="nav-item" role="presentation">
+        <button class="nav-link {% if loop.first %}active{% endif %}" 
+                id="{{ cat }}-tab" data-bs-toggle="tab" data-bs-target="#{{ cat }}" 
+                type="button" role="tab">
+            <i class="fas {{ cat_icons.get(cat, 'fa-book') }} me-1"></i>{{ cat }}
+            <span class="badge bg-{{ 'primary' if cat=='资产' else 'success' if cat=='负债' else 'warning' if cat=='权益' else 'info' if cat=='成本' else 'secondary' }} ms-1">{{ grouped[cat]|length }}</span>
+        </button>
+    </li>
+    {% endfor %}
+</ul>
+
+<!-- 标签页内容 -->
+<div class="tab-content pt-3" id="accountTabContent">
+    {% for cat in categories %}
+    <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="{{ cat }}" role="tabpanel">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm">
+                <thead>
+                    <tr>
+                        <th style="width:15%">科目编码</th>
+                        <th style="width:35%">科目名称</th>
+                        <th style="width:10%">方向</th>
+                        <th style="width:10%">级次</th>
+                        <th style="width:15%">类型</th>
+                        <th style="width:15%">状态</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in grouped[cat] %}
+                    <tr>
+                        <td><code>{{ a.code }}</code></td>
+                        <td>
+                            <span style="padding-left:{{ (a.level-1)*20 }}px">
+                                {% if a.level > 1 %}<i class="fas fa-level-down-alt fa-rotate-90 text-muted me-1" style="font-size:16px"></i>{% endif %}
+                                {{ a.name }}
+                            </span>
+                        </td>
+                        <td><span class="badge bg-{{ 'danger' if a.direction=='贷' else 'primary' }}">{{ a.direction }}</span></td>
+                        <td>{{ '一级' if a.level==1 else '二级' if a.level==2 else '三级' }}</td>
+                        <td>
+                            <span class="badge bg-{{ 'success' if a.is_system else 'info' }}">
+                                {{ '系统预设' if a.is_system else '自定义' }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if a.is_detail %}
+                            <span class="text-success"><i class="fas fa-check-circle"></i> 明细</span>
+                            {% else %}
+                            <span class="text-muted"><i class="fas fa-folder"></i> 非明细</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="6" class="text-center text-muted py-4">暂无{{ cat }}类科目</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

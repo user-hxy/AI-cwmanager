@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}学习回单格式{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h4><i class="fas fa-graduation-cap me-2"></i>学习回单格式</h4>
+    <p class="text-muted">上传一份银行回单样本，标记关键字段，系统自动生成解析规则。</p>
+</div>
+
+<div class="row g-3">
+    <!-- 第一步：上传 -->
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header">第一步：上传样本</div>
+            <div class="card-body">
+                <div class="upload-zone" id="dropZone" style="cursor:pointer" onclick="document.getElementById('fileInput').click()">
+                    <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-2"></i>
+                    <p class="mb-1">拖拽或点击上传PDF/TXT样本</p>
+                    <input type="file" id="fileInput" accept=".pdf,.txt" style="display:none" onchange="parseFile(this)">
+                </div>
+                <div id="parseResult" class="mt-2 small text-info" style="display:none"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 第二步：标记字段 -->
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header">第二步：标记字段</div>
+            <div class="card-body">
+                <div id="sampleTextArea">
+                    <p class="text-muted small">请先上传样本文件</p>
+                </div>
+                <div id="fieldForm" style="display:none">
+                    <div class="mb-2">
+                        <label class="form-label small">银行名称</label>
+                        <input id="bankName" class="form-control form-control-sm" placeholder="如：建设银行">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">模板名称</label>
+                        <input id="templateName" class="form-control form-control-sm" placeholder="如：建行电子回单">
+                    </div>
+                    <hr>
+                    <p class="small text-muted">在下方文本中复制对应字段的值粘贴到输入框：</p>
+                    <div id="sampleDisplay" class="bg-light p-2 rounded small mb-2" style="max-height:150px;overflow:auto;white-space:pre-wrap;font-family:monospace;font-size:16px"></div>
+                    <div class="row g-2">
+                        <div class="col-6"><label class="small">付款人</label><input id="sample_payer" class="form-control form-control-sm" placeholder="如：江苏华邑佳"></div>
+                        <div class="col-6"><label class="small">收款人</label><input id="sample_payee" class="form-control form-control-sm" placeholder="如：黄小勇"></div>
+                        <div class="col-6"><label class="small">金额(含小数)</label><input id="sample_amount" class="form-control form-control-sm" placeholder="如：105.61"></div>
+                        <div class="col-6"><label class="small">日期</label><input id="sample_date" class="form-control form-control-sm" placeholder="如：20260104"></div>
+                        <div class="col-6"><label class="small">用途/备注</label><input id="sample_remark" class="form-control form-control-sm" placeholder="如：办公用品"></div>
+                        <div class="col-6"><label class="small">手续费(可选)</label><input id="sample_fee" class="form-control form-control-sm" placeholder="如：5.00"></div>
+                    </div>
+                    <div class="mt-3">
+                        <button class="btn btn-primary" onclick="generateTemplate()">
+                            <i class="fas fa-magic"></i> 生成并保存模板
+                        </button>
+                    </div>
+                    <div id="resultArea" class="mt-2" style="display:none">
+                        <label class="small">生成的正则规则：</label>
+                        <pre id="regexDisplay" class="bg-dark text-light p-2 rounded small" style="max-height:200px;overflow:auto"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let sampleText = '';
+
+function parseFile(input) {
+    if (!input.files || !input.files[0]) return;
+    const file = input.files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+    document.getElementById('parseResult').style.display = 'block';
+    document.getElementById('parseResult').textContent = '解析中...';
+    fetch('/bank-templates/learn/parse', {method:'POST', body: formData})
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) {
+                sampleText = d.text;
+                document.getElementById('parseResult').textContent = '解析成功！共 ' + sampleText.length + ' 字符';
+                document.getElementById('sampleDisplay').textContent = sampleText;
+                document.getElementById('fieldForm').style.display = 'block';
+                document.getElementById('sampleTextArea').innerHTML = '';
+            } else {
+                document.getElementById('parseResult').textContent = '解析失败：' + d.msg;
+            }
+        })
+        .catch(e => {
+            document.getElementById('parseResult').textContent = '请求失败：' + e.message;
+        });
+}
+
+function generateTemplate() {
+    const bankName = document.getElementById('bankName').value.trim();
+    const templateName = document.getElementById('templateName').value.trim();
+    if (!bankName) { showToast('请输入银行名称', 'warning'); return; }
+    if (!templateName) { showToast('请输入模板名称', 'warning'); return; }
+
+    const formData = new FormData();
+    formData.append('sample_text', sampleText);
+    formData.append('bank_name', bankName);
+    formData.append('template_name', templateName);
+    formData.append('sample_payer', document.getElementById('sample_payer').value.trim());
+    formData.append('sample_payee', document.getElementById('sample_payee').value.trim());
+    formData.append('sample_amount', document.getElementById('sample_amount').value.trim());
+    formData.append('sample_date', document.getElementById('sample_date').value.trim());
+    formData.append('sample_remark', document.getElementById('sample_remark').value.trim());
+    formData.append('sample_fee', document.getElementById('sample_fee').value.trim());
+
+    const btn = document.querySelector('.btn-primary');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 生成中...';
+
+    fetch('/bank-templates/learn/generate', {method:'POST', body: formData})
+        .then(r => r.json())
+        .then(d => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-magic"></i> 生成并保存模板';
+            if (d.success) {
+                document.getElementById('resultArea').style.display = 'block';
+                document.getElementById('regexDisplay').textContent = d.regex_rules;
+                showToast(d.msg, 'success');
+            } else {
+                showToast('生成失败：' + d.msg, 'danger');
+            }
+        })
+        .catch(e => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-magic"></i> 生成并保存模板';
+            showToast('请求失败：' + e.message, 'danger');
+        });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}银行回单模板管理{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center flex-wrap">
+        <h4><i class="fas fa-university me-2"></i>银行回单解析模板</h4>
+        <a href="/bank-templates/add" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> 新增模板</a>
+    </div>
+    <p class="text-muted small">配置不同银行的回单解析规则，支持扩展新银行格式</p>
+</div>
+<div class="table-responsive">
+    <table class="table table-hover table-sm">
+        <thead><tr>
+            <th>银行名称</th><th>模板名称</th><th>状态</th><th>创建时间</th><th>操作</th>
+        </tr></thead>
+        <tbody>
+            {% for t in templates %}
+            <tr>
+                <td><strong>{{ t.bank_name }}</strong></td>
+                <td>{{ t.name }}</td>
+                <td>
+                    <form method="post" action="/bank-templates/{{ t.id }}/toggle" class="d-inline">
+                        <button class="btn btn-sm btn-{{ 'success' if t.is_active else 'secondary' }}">
+                            {{ '已启用' if t.is_active else '已禁用' }}
+                        </button>
+                    </form>
+                </td>
+                <td>{{ t.created_at.strftime('%Y-%m-%d') if t.created_at else '-' }}</td>
+                <td>
+                    <a href="/bank-templates/{{ t.id }}/edit" class="btn btn-sm btn-outline-primary"><i class="fas fa-edit"></i></a>
+                    <form method="post" action="/bank-templates/{{ t.id }}/delete" class="d-inline" onsubmit="confirmFormSubmit(event, '确认删除此模板？')">
+                        <button class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-center text-muted py-4">暂无模板，点击"新增模板"创建</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<div class="card mt-3">
+    <div class="card-header"><i class="fas fa-info-circle me-1"></i>系统内置解析器说明</div>
+    <div class="card-body">
+        <p class="mb-1"><strong>姜堰农商行</strong> — 内置解析器，支持"网银往账凭证"和"电子缴税凭证"两种格式的自动识别与多回单拆分。</p>
+        <p class="mb-0"><strong>浙商银行</strong> — 内置解析器，支持文本型PDF回单的识别提取。</p>
+    </div>
+</div>
+{% endblock %}

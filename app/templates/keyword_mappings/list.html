@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}科目匹配规则{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center flex-wrap">
+        <h4><i class="fas fa-code-branch me-2"></i>科目匹配规则</h4>
+        <div>
+            <a href="javascript:void(0)" class="btn btn-primary btn-sm" onclick="showAddForm()"><i class="fas fa-plus"></i> 新增规则</a>
+        </div>
+    </div>
+    <p class="text-muted small mt-1">
+        <i class="fas fa-info-circle"></i>
+        设置关键词与科目的映射关系，录入凭证或从回单/发票生成凭证时系统自动推荐科目。
+        匹配顺序：企业自定义规则 → 系统内置场景规则。
+    </p>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label small">来源类型</label>
+                <select name="source_type" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">全部</option>
+                    <option value="bank" {% if source_type=='bank' %}selected{% endif %}>回单匹配</option>
+                    <option value="invoice" {% if source_type=='invoice' %}selected{% endif %}>发票匹配</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <a href="/keyword-mappings/" class="btn btn-sm btn-secondary">重置</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th>关键词</th>
+                <th>匹配科目</th>
+                <th>凭证方向</th>
+                <th>来源类型</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in mappings %}
+            <tr>
+                <td><code>{{ m.keyword }}</code></td>
+                <td>{{ m.account_code }} {{ m.account_name }}</td>
+                <td><span class="badge bg-{{ 'primary' if m.direction=='借' else 'success' }}">{{ m.direction }}</span></td>
+                <td><span class="badge bg-info">{{ {'bank':'回单','invoice':'发票'}.get(m.source_type, m.source_type) }}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="showEditForm({{ m.id }})"><i class="fas fa-edit"></i></button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteMapping({{ m.id }})"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-center text-muted py-4">暂无匹配规则</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- 新增/编辑弹窗 -->
+<div class="modal fade" id="mappingModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTitle"><i class="fas fa-code-branch me-1"></i>新增规则</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="mappingForm">
+                <div class="modal-body">
+                    <input type="hidden" name="mapping_id" id="mappingId" value="0">
+                    <div class="mb-3">
+                        <label class="form-label">关键词 *</label>
+                        <input name="keyword" id="fKeyword" class="form-control" required placeholder="如：办公用品、差旅费">
+                        <small class="text-muted">录入凭证摘要中包含此关键词时自动推荐对应科目</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">匹配科目 *</label>
+                        <select name="account_id" id="fAccountId" class="form-select" required>
+                            <option value="">选择科目</option>
+                            {% for a in accounts %}
+                            <option value="{{ a.id }}">{{ a.code }} {{ a.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">凭证方向</label>
+                        <select name="direction" id="fDirection" class="form-select">
+                            <option value="借">借方</option>
+                            <option value="贷">贷方</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">来源类型</label>
+                        <select name="source_type" id="fSourceType" class="form-select">
+                            <option value="bank">回单匹配</option>
+                            <option value="invoice">发票匹配</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> 保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function showAddForm() {
+    document.getElementById('modalTitle').innerHTML = '<i class="fas fa-plus me-1"></i>新增规则';
+    document.getElementById('mappingId').value = '0';
+    document.getElementById('fKeyword').value = '';
+    document.getElementById('fAccountId').value = '';
+    document.getElementById('fDirection').value = '借';
+    document.getElementById('fSourceType').value = 'bank';
+    new bootstrap.Modal(document.getElementById('mappingModal')).show();
+}
+
+function showEditForm(id) {
+    document.getElementById('modalTitle').innerHTML = '<i class="fas fa-edit me-1"></i>编辑规则';
+    // 读取当前行数据
+    const row = event.target.closest('tr');
+    const keyword = row.cells[0].textContent.trim();
+    const acctText = row.cells[1].textContent.trim();
+    const acctCode = acctText.split(' ')[0];
+    const direction = row.cells[2].textContent.trim();
+    const sourceType = row.cells[3].textContent.trim();
+    document.getElementById('mappingId').value = id;
+    document.getElementById('fKeyword').value = keyword;
+    // 找到科目
+    const sel = document.getElementById('fAccountId');
+    for (let i = 0; i < sel.options.length; i++) {
+        if (sel.options[i].text.startsWith(acctCode)) { sel.value = sel.options[i].value; break; }
+    }
+    document.getElementById('fDirection').value = direction;
+    document.getElementById('fSourceType').value = sourceType === '发票' ? 'invoice' : 'bank';
+    new bootstrap.Modal(document.getElementById('mappingModal')).show();
+}
+
+document.getElementById('mappingForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const id = document.getElementById('mappingId').value;
+    const fd = new FormData(this);
+    const url = id === '0' ? '/keyword-mappings/add' : `/keyword-mappings/${id}/edit`;
+    fetch(url, {method:'POST', body: fd})
+        .then(r => r.json())
+        .then(d => {
+            showToast(d.msg, d.success ? 'success' : 'danger');
+            if (d.success) { bootstrap.Modal.getInstance(document.getElementById('mappingModal')).hide(); location.reload(); }
+        });
+});
+
+function deleteMapping(id) {
+    showConfirm('确认删除此匹配规则？', function() {
+        fetch('/keyword-mappings/' + id + '/delete', {method:'POST'})
+            .then(r => r.json())
+            .then(d => { showToast(d.msg, d.success ? 'success' : 'danger'); if (d.success) location.reload(); });
+    });
+}
+</script>
+{% endblock %}

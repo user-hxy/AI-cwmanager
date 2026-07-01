@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}新增科目{% endblock %}
+{% block content %}
+<div class="page-header"><h4><i class="fas fa-plus me-2"></i>新增明细科目</h4></div>
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card"><div class="card-body">
+            <form method="post">
+                <div class="mb-3"><label class="form-label">科目编码</label><input name="code" class="form-control" required></div>
+                <div class="mb-3"><label class="form-label">科目名称</label><input name="name" class="form-control" required></div>
+                <div class="mb-3">
+                    <label class="form-label">类别</label>
+                    <select name="category" class="form-select">
+                        <option value="资产">资产</option><option value="负债">负债</option>
+                        <option value="权益">权益</option><option value="成本">成本</option><option value="损益">损益</option>
+                    </select>
+                </div>
+                <div class="mb-3"><label class="form-label">方向</label>
+                    <select name="direction" class="form-select"><option value="借">借方</option><option value="贷">贷方</option></select>
+                </div>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> 保存</button>
+                <a href="/accounts/" class="btn btn-secondary ms-2">取消</a>
+            </form>
+        </div></div>
+    </div>
+</div>
+{% endblock %}

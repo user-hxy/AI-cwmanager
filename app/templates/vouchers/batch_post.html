@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}批量过账{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center flex-wrap">
+        <h4><i class="fas fa-check-circle me-2"></i>批量过账</h4>
+        <div>
+            <form class="d-inline-block">
+                <input type="month" name="period" value="{{ period }}" class="form-control form-control-sm d-inline-block w-auto" onchange="this.form.submit()">
+            </form>
+        </div>
+    </div>
+    <p class="text-muted mt-1 mb-0">
+        <i class="fas fa-info-circle"></i> 当前期间: <strong>{{ period }}</strong>
+        {% if vouchers %} · 待过账 <strong>{{ vouchers|length }}</strong> 张凭证{% endif %}
+    </p>
+</div>
+
+{% if vouchers %}
+<div class="table-responsive">
+    <table class="table table-hover table-sm">
+        <thead><tr>
+            <th style="width:40px"><input type="checkbox" id="selectAll" onchange="toggleAll()" checked></th>
+            <th>凭证号</th><th>日期</th><th>摘要</th><th>借方金额</th><th>贷方金额</th><th>制单人</th>
+        </tr></thead>
+        <tbody>
+            {% for v in vouchers %}
+            {% set debit = v.entries | selectattr('direction', 'equalto', '借') | sum(attribute='amount') %}
+            {% set credit = v.entries | selectattr('direction', 'equalto', '贷') | sum(attribute='amount') %}
+            <tr>
+                <td><input type="checkbox" class="voucher-check" value="{{ v.id }}" checked></td>
+                <td><code>{{ v.voucher_no }}</code></td>
+                <td>{{ v.date }}</td>
+                <td class="text-truncate" style="max-width:200px">{{ v.summary or '-' }}</td>
+                <td class="text-end text-primary">{{ '%.2f'|format(debit) }}</td>
+                <td class="text-end text-success">{{ '%.2f'|format(credit) }}</td>
+                <td>{{ v.creator.display_name if v.creator else '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<div class="d-flex justify-content-between align-items-center mt-3">
+    <span class="text-muted">已选中 <strong id="selectedCount">{{ vouchers|length }}</strong> 张凭证</span>
+    <div>
+        <a href="/vouchers/" class="btn btn-secondary me-2"><i class="fas fa-arrow-left"></i> 返回</a>
+        <button class="btn btn-success" onclick="batchPost()"><i class="fas fa-check-circle"></i> 批量过账</button>
+    </div>
+</div>
+{% else %}
+<div class="text-center text-muted py-5">
+    <i class="fas fa-check-circle fa-3x mb-3"></i>
+    <p>{{ period }} 期间没有待过账的凭证</p>
+    <a href="/vouchers/" class="btn btn-outline-primary"><i class="fas fa-arrow-left"></i> 返回凭证列表</a>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+function toggleAll() {
+    document.querySelectorAll('.voucher-check').forEach(c => {
+        c.checked = document.getElementById('selectAll').checked;
+    });
+    updateCount();
+}
+function updateCount() {
+    const checked = document.querySelectorAll('.voucher-check:checked').length;
+    document.getElementById('selectedCount').textContent = checked;
+}
+document.querySelectorAll('.voucher-check').forEach(c => c.addEventListener('change', updateCount));
+
+function batchPost() {
+    const checked = document.querySelectorAll('.voucher-check:checked');
+    if (checked.length === 0) { showToast('请选择要过账的凭证', 'warning'); return; }
+    const ids = Array.from(checked).map(c => c.value).join(',');
+    showConfirm('确认对选中的 ' + checked.length + ' 张凭证执行过账操作？', function() {
+        const formData = new FormData();
+        formData.append('ids', ids);
+        fetch('/vouchers/batch-post', {method:'POST', body: formData})
+            .then(r => r.json())
+            .then(d => {
+                showToast('批量过账成功，共' + d.count + '张', 'success');
+                location.reload();
+            });
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}导入银行回单{% endblock %}
+{% block content %}
+<div class="page-header"><h4><i class="fas fa-upload me-2"></i>导入银行回单</h4></div>
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label">选择银行回单文件（支持TXT/PDF文本）</label>
+                        <div class="upload-zone" id="dropZone">
+                            <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-2"></i>
+                            <p class="mb-1">拖拽文件到此处或点击上传</p>
+                            <input type="file" name="file" class="form-control" required accept=".txt,.pdf,.jpg,.png" onchange="previewFile(this)">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">银行回单格式</label>
+                        <select name="bank_type" class="form-select">
+                            <option value="auto">自动检测</option>
+                            <option value="jiangyan">姜堰农商行</option>
+                            <option value="zheshang">浙商银行</option>
+                            {% for bt in bank_templates %}
+                            <option value="template_{{ bt.id }}">{{ bt.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted">选择对应银行格式可提高解析准确率</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">关联银行账户</label>
+                        <select name="bank_account_id" class="form-select">
+                            <option value="0">自动匹配</option>
+                            {% for ba in bank_accounts %}
+                            <option value="{{ ba.id }}">{{ ba.bank_name }} - {{ ba.account_no }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-upload"></i> 导入并解析</button>
+                    <a href="/bank-receipts/" class="btn btn-secondary ms-2">取消</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function previewFile(input) {
+    if(input.files && input.files[0]) {
+        document.getElementById('dropZone').classList.add('has-file');
+    }
+}
+</script>
+{% endblock %}

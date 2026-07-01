@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}测评历史 - 财务管理系统{% endblock %}
+{% block content %}
+
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center flex-wrap">
+        <div>
+            <h4 class="mb-1"><i class="fas fa-history me-2"></i>测评历史记录</h4>
+            <p class="text-muted mb-0">{{ company.name }} · 共 {{ total }} 条记录</p>
+        </div>
+        <div class="mt-2 mt-md-0">
+            <a href="/assessment/" class="btn btn-sm btn-outline-primary"><i class="fas fa-arrow-left"></i> 返回测评</a>
+        </div>
+    </div>
+</div>
+
+{% if records %}
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>测评模型</th>
+                    <th>会计期间</th>
+                    <th class="text-center">评分</th>
+                    <th class="text-center">评级</th>
+                    <th>测评时间</th>
+                    <th class="text-center">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in records %}
+                {% set model_name = models.get(r.model_id, r.model_id) %}
+                {% set lv = r.level %}
+                {% set badge_class = 'bg-success' if lv in ('优秀','安全','充裕') else 'bg-info' if lv in ('良好','正常') else 'bg-warning text-dark' if lv in ('一般','灰色','关注') else 'bg-danger' %}
+                <tr>
+                    <td>
+                        <span class="badge bg-light text-dark fs-6">
+                            {% if r.model_id == 'dupont' %}<i class="fas fa-chart-pie text-primary me-1"></i>
+                            {% elif r.model_id == 'zscore' %}<i class="fas fa-exclamation-triangle text-warning me-1"></i>
+                            {% elif r.model_id == 'composite' %}<i class="fas fa-star text-success me-1"></i>
+                            {% elif r.model_id == 'liquidity' %}<i class="fas fa-water text-info me-1"></i>
+                            {% endif %}
+                            {{ model_name }}
+                        </span>
+                    </td>
+                    <td><strong>{{ r.period }}</strong></td>
+                    <td class="text-center"><strong>{{ '%.1f'|format(r.score) }}</strong></td>
+                    <td class="text-center"><span class="badge {{ badge_class }}">{{ lv }}</span></td>
+                    <td><small class="text-muted">{{ r.created_at.strftime('%Y-%m-%d %H:%M') if r.created_at else '' }}</small></td>
+                    <td class="text-center">
+                        <a href="/assessment/detail/{{ r.id }}" class="btn btn-sm btn-outline-info" title="查看详情">
+                            <i class="fas fa-eye"></i>
+                        </a>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteRecord({{ r.id }})" title="删除">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 分页 -->
+{% if total_pages > 1 %}
+<nav class="mt-3">
+    <ul class="pagination justify-content-center">
+        {% if page > 1 %}
+        <li class="page-item"><a class="page-link" href="/assessment/history?page={{ page - 1 }}">上一页</a></li>
+        {% endif %}
+        {% for p in range(1, total_pages + 1) %}
+        <li class="page-item {{ 'active' if p == page }}">
+            <a class="page-link" href="/assessment/history?page={{ p }}">{{ p }}</a>
+        </li>
+        {% endfor %}
+        {% if page < total_pages %}
+        <li class="page-item"><a class="page-link" href="/assessment/history?page={{ page + 1 }}">下一页</a></li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+{% else %}
+<div class="text-center py-5">
+    <i class="fas fa-heartbeat fa-4x text-muted mb-3"></i>
+    <h5 class="text-muted">暂无测评记录</h5>
+    <p class="text-muted">前往测评页面运行财务健康度测评</p>
+    <a href="/assessment/" class="btn btn-primary"><i class="fas fa-play"></i> 开始测评</a>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function deleteRecord(id) {
+    showConfirm('确认删除此条测评记录？', function() {
+        var fd = new FormData();
+        fetch('/assessment/delete/' + id, {method:'POST', body:fd})
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                showToast(d.msg, d.success ? 'success' : 'danger');
+                if (d.success) setTimeout(function() { location.reload(); }, 500);
+            })
+            .catch(function(e) { showToast('请求失败', 'danger'); });
+    });
+}
+</script>
+{% endblock %}

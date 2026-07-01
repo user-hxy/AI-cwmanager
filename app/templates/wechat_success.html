@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>绑定成功 - 财务管理系统</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{background:#eef4fb;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;font-size:16px;color:#1a2a4a}
+        .card{max-width:400px;width:100%;background:#fff;border-radius:16px;padding:32px 24px;text-align:center;box-shadow:0 8px 32px rgba(43,123,228,0.1)}
+        .ok-icon{width:64px;height:64px;background:#07c160;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;color:#fff;font-size:32px;font-weight:bold}
+        h4{font-size:18px;color:#07c160;margin-bottom:12px}
+        p{font-size:15px;color:#5a7a9a;line-height:1.6;margin-bottom:8px}
+        .btn{display:block;width:100%;padding:12px;border-radius:8px;border:none;font-size:16px;font-weight:600;cursor:pointer;text-decoration:none;text-align:center;margin-top:16px}
+        .btn-success{background:#07c160;color:#fff}
+        .small{font-size:13px;color:#8ab4e0;margin-top:16px}
+        strong{color:#1a2a4a}
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="ok-icon">&#10003;</div>
+        <h4>{% if action %}{{ action }}{% endif %}成功</h4>
+        {% if wechat_id %}
+        <p>微信号: <strong>{{ wechat_id }}</strong></p>
+        {% endif %}
+        <p>欢迎您，{% if display_name %}{{ display_name }}{% endif %}</p>
+        <a href="/dashboard" class="btn btn-success">进入系统</a>
+        <p class="small">页面即将自动跳转...</p>
+    </div>
+    <script>setTimeout(function(){ window.location.href = '/dashboard'; }, 2000);</script>
+</body>
+</html>

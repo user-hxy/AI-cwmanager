@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}导入发票{% endblock %}
+{% block content %}
+<div class="page-header"><h4><i class="fas fa-upload me-2"></i>导入发票</h4></div>
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> 支持格式: XML (数电发票)、OFD、PDF（含图片型）、JPG/PNG (OCR)
+                </div>
+                <form method="post" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label">选择发票文件</label>
+                        <div class="upload-zone">
+                            <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-2"></i>
+                            <p class="mb-1">拖拽文件到此处或点击上传（支持批量）</p>
+                            <input type="file" name="file" class="form-control" required accept=".xml,.ofd,.pdf,.jpg,.jpeg,.png">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-upload"></i> 导入并解析</button>
+                    <a href="/invoices/" class="btn btn-secondary ms-2">取消</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

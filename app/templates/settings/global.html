@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}全局配置 - AI财务管理系统{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h4><i class="fas fa-cog me-2"></i>全局系统配置</h4>
+    <p class="text-muted">全局配置影响所有企业，企业级设置由各企业管理</p>
+</div>
+
+<form id="settingsForm">
+<div class="row g-3">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header"><i class="fas fa-robot me-1"></i>AI 智能助手</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Deepseek API Key</label>
+                    <input type="password" name="deepseek_api_key" class="form-control" value="{{ deepseek_api_key }}" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+                    <small class="text-muted">用于AI智能助手调用Deepseek大模型。前往 <a href="https://platform.deepseek.com" target="_blank">Deepseek官网</a> 获取。</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-3 text-center">
+    <button type="submit" class="btn btn-primary btn-lg"><i class="fas fa-save"></i> 保存设置</button>
+</div>
+
+<div class="row g-3 mt-3">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header"><i class="fas fa-database me-1"></i>数据维护</div>
+            <div class="card-body">
+                <p class="text-muted small">下载当前数据库文件用于备份。文件包含所有公司账套、凭证、用户等完整数据。</p>
+                <a href="/settings/download-db" class="btn btn-outline-primary"><i class="fas fa-download"></i> 下载数据库备份</a>
+            </div>
+        </div>
+    </div>
+</div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('settingsForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const btn = this.querySelector('button[type="submit"]');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 保存中...';
+    const fd = new FormData(this);
+    fetch('/settings/save-global', {method:'POST', body: fd}).then(r=>r.json()).then(d=>{
+        showToast(d.msg, d.success ? 'success' : 'danger');
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> 保存设置';
+    }).catch(() => {
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> 保存设置';
+    });
+});
+</script>
+{% endblock %}

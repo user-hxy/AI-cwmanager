@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}{{ '编辑用户' if edit_mode else '新增用户' }}{% endblock %}
+{% block content %}
+<div class="page-header"><h4><i class="fas fa-{{ 'edit' if edit_mode else 'user-plus' }} me-2"></i>{{ '编辑用户' if edit_mode else '新增用户' }}</h4></div>
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-body">
+                {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+                <form method="post" action="{{ '/users/' + target_user.id|string + '/edit' if edit_mode else '/users/add' }}">
+                    {% if not edit_mode %}
+                    <div class="mb-3">
+                        <label class="form-label">用户名 *</label>
+                        <input name="username" class="form-control" required>
+                    </div>
+                    {% endif %}
+                    <div class="mb-3">
+                        <label class="form-label">显示名称</label>
+                        <input name="display_name" class="form-control" value="{{ target_user.display_name if edit_mode else '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{{ '新密码' if edit_mode else '密码' }}{% if not edit_mode %} *{% endif %}</label>
+                        <input name="password" type="password" class="form-control" {{ 'required' if not edit_mode else '' }} {% if edit_mode %}placeholder="留空则不修改"{% endif %}>
+                        {% if edit_mode %}<small class="text-muted">留空则不修改密码</small>{% endif %}
+                    </div>
+                    {% if not edit_mode %}
+                    <div class="mb-3">
+                        <label class="form-label">角色 *</label>
+                        <select name="role" class="form-select" required>
+                            {% for k, v in allowed_roles.items() %}
+                            <option value="{{ k }}">{{ v }}</option>
+                            {% endfor %}
+                        </select>
+                        {% if user.role == 'super_admin' and all_companies %}
+                        <small class="text-info mt-1 d-block"><i class="fas fa-info-circle"></i> 超级管理员只能创建公司管理员</small>
+                        {% endif %}
+                    </div>
+                    {% if user.role == 'super_admin' and all_companies %}
+                    <div class="mb-3">
+                        <label class="form-label">所属公司 *</label>
+                        <select name="company_id" class="form-select" required>
+                            <option value="">-- 选择公司 --</option>
+                            {% for c in all_companies %}
+                            <option value="{{ c.id }}">{{ c.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+                    {% endif %}
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> {{ '保存修改' if edit_mode else '创建' }}</button>
+                    <a href="/users/" class="btn btn-secondary ms-2">取消</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

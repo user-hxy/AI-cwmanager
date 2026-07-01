@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}AI训练管理{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h4><i class="fas fa-robot me-2"></i>AI训练管理</h4>
+    <p class="text-muted">管理AI助手的训练示例和使用情况（仅超级管理员）</p>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4"><div class="stat-card"><div class="stat-body"><div class="stat-value">{{ total_chats }}</div><div class="stat-label">总对话数</div></div></div></div>
+    <div class="col-md-4"><div class="stat-card"><div class="stat-body"><div class="stat-value">{{ "%.0f"|format(total_tokens/1000) }}K</div><div class="stat-label">总Token消耗</div></div></div></div>
+    <div class="col-md-4"><div class="stat-card"><div class="stat-body"><div class="stat-value">{{ "%.0f"|format(total_points) }}</div><div class="stat-label">总消耗点数</div></div></div></div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-book me-1"></i>训练示例 ({{ examples|length }})</span>
+        <button class="btn btn-primary btn-sm" onclick="showAddExample()"><i class="fas fa-plus"></i> 新增示例</button>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm">
+            <thead><tr><th>排序</th><th>分类</th><th>用户问题</th><th>AI回复(前80字)</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody>
+            {% for ex in examples %}
+            <tr>
+                <td>{{ ex.sort_order }}</td>
+                <td><span class="badge bg-info">{{ ex.category }}</span></td>
+                <td><small>{{ ex.user_message[:60] }}{% if ex.user_message|length>60 %}...{% endif %}</small></td>
+                <td><small>{{ ex.ai_response[:80] }}{% if ex.ai_response|length>80 %}...{% endif %}</small></td>
+                <td><span class="badge bg-{{ 'success' if ex.is_active else 'secondary' }}">{{ '启用' if ex.is_active else '停用' }}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="showEditExample({{ ex.id }})"><i class="fas fa-edit"></i></button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="delExample({{ ex.id }})"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not examples %}<tr><td colspan="6" class="text-muted text-center">暂无训练示例，可添加常见问答对来优化AI回答</td></tr>{% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><i class="fas fa-lightbulb me-1"></i>使用说明</div>
+    <div class="card-body">
+        <p class="mb-1">训练示例将作为系统提示词的一部分注入AI对话上下文，影响所有用户的AI回答。</p>
+        <p class="mb-0 text-muted">建议添加常见的业务场景问答对，帮助AI更好地理解用户意图。示例按 sort_order 排序，数值越小越优先。</p>
+    </div>
+</div>
+
+<!-- 新增/编辑弹窗 -->
+<div class="modal fade" id="exampleModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="exampleModalTitle"><i class="fas fa-plus me-1"></i>新增训练示例</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="exampleForm" onsubmit="return saveExample()">
+            <input type="hidden" id="exId" value="0">
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label">分类</label>
+                        <select id="exCategory" class="form-select">
+                            <option value="general">通用</option>
+                            <option value="voucher">凭证录入</option>
+                            <option value="report">报表查询</option>
+                            <option value="accounting">会计知识</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">排序</label>
+                        <input type="number" id="exSort" class="form-control" value="0">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">状态</label>
+                        <select id="exActive" class="form-select">
+                            <option value="true">启用</option>
+                            <option value="false">停用</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">用户问题</label>
+                    <textarea id="exUserMsg" class="form-control" rows="3" placeholder="例如：录入一张加油费凭证285元"></textarea>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">期望的AI回复（含[凭证]标记）</label>
+                    <textarea id="exAiResp" class="form-control" rows="5" placeholder="例如：已创建凭证 借5602... 后面加上[凭证]标记"></textarea>
+                    <small class="text-muted">如需自动创建凭证，回复末尾必须包含 [凭证] 标记</small>
+                </div>
+                <div id="exResult" class="small" style="display:none"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> 保存</button>
+            </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function showAddExample() {
+    document.getElementById('exId').value = '0';
+    document.getElementById('exampleModalTitle').innerHTML = '<i class="fas fa-plus me-1"></i>新增训练示例';
+    document.getElementById('exUserMsg').value = '';
+    document.getElementById('exAiResp').value = '';
+    document.getElementById('exCategory').value = 'general';
+    document.getElementById('exSort').value = '0';
+    document.getElementById('exActive').value = 'true';
+    document.getElementById('exResult').style.display = 'none';
+    new bootstrap.Modal(document.getElementById('exampleModal')).show();
+}
+function showEditExample(id) {
+    document.getElementById('exId').value = id;
+    document.getElementById('exampleModalTitle').innerHTML = '<i class="fas fa-edit me-1"></i>编辑训练示例';
+    document.getElementById('exResult').style.display = 'none';
+    fetch('/ai/train/edit/'+id).then(r=>r.json()).then(d=>{
+        if(d.success){
+            document.getElementById('exUserMsg').value = d.ex.user_message;
+            document.getElementById('exAiResp').value = d.ex.ai_response;
+            document.getElementById('exCategory').value = d.ex.category;
+            document.getElementById('exSort').value = d.ex.sort_order;
+            document.getElementById('exActive').value = d.ex.is_active ? 'true' : 'false';
+            new bootstrap.Modal(document.getElementById('exampleModal')).show();
+        }
+    });
+}
+function saveExample() {
+    var id = document.getElementById('exId').value;
+    var fd = new FormData();
+    fd.append('category', document.getElementById('exCategory').value);
+    fd.append('user_message', document.getElementById('exUserMsg').value);
+    fd.append('ai_response', document.getElementById('exAiResp').value);
+    fd.append('sort_order', document.getElementById('exSort').value);
+    fd.append('is_active', document.getElementById('exActive').value === 'true');
+    var url = id > 0 ? '/ai/train/edit/' + id : '/ai/train/add';
+    fetch(url, {method:'POST', body: fd}).then(r=>r.json()).then(d=>{
+        if(d.success){
+            bootstrap.Modal.getInstance(document.getElementById('exampleModal')).hide();
+            showToast(d.msg, 'success');
+            setTimeout(function(){ location.reload(); }, 600);
+        } else {
+            document.getElementById('exResult').className = 'text-danger small';
+            document.getElementById('exResult').textContent = d.msg;
+            document.getElementById('exResult').style.display = 'block';
+        }
+    });
+    return false;
+}
+function delExample(id) {
+    showConfirm('确认删除此训练示例？', function(){
+        fetch('/ai/train/delete/'+id, {method:'POST'}).then(r=>r.json()).then(d=>{
+            showToast(d.msg, d.success ? 'success' : 'danger');
+            if(d.success) setTimeout(function(){ location.reload(); }, 600);
+        });
+    });
+}
+</script>
+{% endblock %}

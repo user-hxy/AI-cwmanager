@@ -1,0 +1,116 @@
+<form class="d-inline-block" id="periodForm" style="white-space:nowrap" method="get">
+    <select name="period_type" class="form-select form-select-sm d-inline-block w-auto" onchange="onPeriodTypeChange()" style="width:auto;font-size:16px">
+        <option value="month" {% if period_type=='month' %}selected{% endif %}>按月</option>
+        <option value="quarter" {% if period_type=='quarter' %}selected{% endif %}>按季</option>
+        <option value="half_year" {% if period_type=='half_year' %}selected{% endif %}>半年</option>
+        <option value="year" {% if period_type=='year' %}selected{% endif %}>按年</option>
+    </select>
+
+    {# 按月 #}
+    <span id="pvMonth" style="display:{{ 'inline' if period_type=='month' else 'none' }}">
+        <input type="month" class="form-control form-control-sm d-inline-block pv-input" style="width:160px;font-size:16px"
+               value="{{ period_value if period_type=='month' else target_period }}" onchange="submitPeriod()">
+    </span>
+
+    {# 按季 #}
+    <span id="pvQuarter" style="display:{{ 'inline' if period_type=='quarter' else 'none' }}">
+        <input type="number" class="form-control form-control-sm d-inline-block pv-year" style="width:100px;font-size:16px"
+               value="{{ period_value[:4] if period_type=='quarter' and period_value else target_year }}"
+               placeholder="年份" min="2000" max="2099" onchange="submitQuarter()">
+        <select class="form-select form-select-sm d-inline-block pv-quarter" style="width:auto;font-size:16px" onchange="submitQuarter()">
+            {% set qn = period_value[5:] if period_type=='quarter' and period_value and period_value[5:] else '1' %}
+            <option value="1" {{ 'selected' if qn=='1' else '' }}>第1季度</option>
+            <option value="2" {{ 'selected' if qn=='2' else '' }}>第2季度</option>
+            <option value="3" {{ 'selected' if qn=='3' else '' }}>第3季度</option>
+            <option value="4" {{ 'selected' if qn=='4' else '' }}>第4季度</option>
+        </select>
+    </span>
+
+    {# 半年 #}
+    <span id="pvHalf" style="display:{{ 'inline' if period_type=='half_year' else 'none' }}">
+        <input type="number" class="form-control form-control-sm d-inline-block pv-year" style="width:100px;font-size:16px"
+               value="{{ period_value[:4] if period_type=='half_year' and period_value else target_year }}"
+               placeholder="年份" min="2000" max="2099" onchange="submitHalf()">
+        <select class="form-select form-select-sm d-inline-block pv-half" style="width:auto;font-size:16px" onchange="submitHalf()">
+            {% set hv = 'H2' if period_type=='half_year' and period_value and 'H2' in period_value else 'H1' %}
+            <option value="H1" {{ 'selected' if hv=='H1' else '' }}>上半年</option>
+            <option value="H2" {{ 'selected' if hv=='H2' else '' }}>下半年</option>
+        </select>
+    </span>
+
+    {# 按年 #}
+    <span id="pvYear" style="display:{{ 'inline' if period_type=='year' else 'none' }}">
+        <input type="number" class="form-control form-control-sm d-inline-block pv-year" style="width:120px;font-size:16px"
+               value="{{ period_value if period_type=='year' else target_year }}"
+               placeholder="输入年份" min="2000" max="2099" onchange="submitYear(this)">
+    </span>
+</form>
+
+<script>
+function _getPeriodValue() {
+    var t = document.querySelector('#periodForm [name="period_type"]').value;
+    if (t === 'month') {
+        return document.querySelector('#pvMonth .pv-input').value;
+    } else if (t === 'quarter') {
+        var y = document.querySelector('#pvQuarter .pv-year').value;
+        var q = document.querySelector('#pvQuarter .pv-quarter').value;
+        return y + '-' + q;
+    } else if (t === 'half_year') {
+        var y = document.querySelector('#pvHalf .pv-year').value;
+        var h = document.querySelector('#pvHalf .pv-half').value;
+        return y + '-' + h;
+    } else {
+        return document.querySelector('#pvYear .pv-year').value;
+    }
+}
+
+function submitPeriod() {
+    var val = _getPeriodValue();
+    if (!val) return;
+    var url = window.location.pathname + '?period_type=' + document.querySelector('#periodForm [name="period_type"]').value + '&period_value=' + val;
+    window.location.href = url;
+}
+
+function submitQuarter() {
+    var y = document.querySelector('#pvQuarter .pv-year').value;
+    var q = document.querySelector('#pvQuarter .pv-quarter').value;
+    if (y && q) submitPeriod();
+}
+
+function submitHalf() {
+    var y = document.querySelector('#pvHalf .pv-year').value;
+    var h = document.querySelector('#pvHalf .pv-half').value;
+    if (y && h) submitPeriod();
+}
+
+function submitYear(input) {
+    if (input.value) submitPeriod();
+}
+
+function onPeriodTypeChange() {
+    var t = document.querySelector('#periodForm [name="period_type"]').value;
+    document.getElementById('pvMonth').style.display = t === 'month' ? 'inline' : 'none';
+    document.getElementById('pvQuarter').style.display = t === 'quarter' ? 'inline' : 'none';
+    document.getElementById('pvHalf').style.display = t === 'half_year' ? 'inline' : 'none';
+    document.getElementById('pvYear').style.display = t === 'year' ? 'inline' : 'none';
+
+    // 设置默认值并跳转
+    var targetPeriod = '{{ target_period }}';
+    var targetYear = '{{ target_year }}';
+    if (t === 'month') {
+        document.querySelector('#pvMonth .pv-input').value = targetPeriod;
+    } else if (t === 'quarter') {
+        var yInp = document.querySelector('#pvQuarter .pv-year');
+        if (!yInp.value || yInp.value === '') yInp.value = targetYear;
+        document.querySelector('#pvQuarter .pv-quarter').value = '1';
+    } else if (t === 'half_year') {
+        var yInp = document.querySelector('#pvHalf .pv-year');
+        if (!yInp.value || yInp.value === '') yInp.value = targetYear;
+        document.querySelector('#pvHalf .pv-half').value = 'H1';
+    } else {
+        var yInp = document.querySelector('#pvYear .pv-year');
+        if (!yInp.value || yInp.value === '') yInp.value = targetYear;
+    }
+    submitPeriod();
+}
+</script>

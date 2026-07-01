@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% block title %}公司详情{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center flex-wrap">
+        <h4><i class="fas fa-building me-2"></i>{{ company.name }}</h4>
+        <div class="d-flex gap-2">
+            <a href="/companies/edit/{{ company.id }}" class="btn btn-outline-primary btn-sm"><i class="fas fa-edit"></i> 编辑</a>
+            <form method="post" action="/companies/{{ company.id }}/delete" onsubmit="confirmFormSubmit(event, '确认删除公司【{{ company.name }}】？将同时删除该公司所有用户、凭证、回单、发票等全部数据，不可恢复！')">
+                <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash-alt"></i> 删除</button>
+            </form>
+        </div>
+</div>
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="card"><div class="card-body">
+            <h6>基础信息</h6>
+            <table class="table table-sm">
+                <tr><td>编码</td><td>{{ company.code }}</td></tr>
+                <tr><td>税号</td><td>{{ company.tax_id or '-' }}</td></tr>
+                <tr><td>行业</td><td>{{ company.industry or '-' }}</td></tr>
+                <tr><td>联系人</td><td>{{ company.contact_person or '-' }}</td></tr>
+                <tr><td>联系电话</td><td>{{ company.contact_phone or '-' }}</td></tr>
+                <tr><td>启用日期</td><td>{{ company.start_date or '-' }}</td></tr>
+                <tr><td>账套时长</td><td>{% if company.closed_range %}{{ company.closed_range }}{% else %}<span class="text-muted">暂无结账记录</span>{% endif %}</td></tr>
+                <tr><td>状态</td><td><span class="badge bg-success">{{ company.status }}</span></td></tr>
+            </table>
+        </div></div>
+    </div>
+    <div class="col-md-6">
+        <div class="card"><div class="card-body">
+            <h6>使用时效</h6>
+            <table class="table table-sm">
+                <tr>
+                    <td>类型</td>
+                    <td>{{ '永久' if company.expiry_type == 'permanent' else '固定期限' }}</td>
+                </tr>
+                <tr>
+                    <td>截止日期</td>
+                    <td>
+                        {% if company.expiry_type == 'permanent' %}
+                        <span class="text-success">永久有效</span>
+                        {% elif company.is_expired %}
+                        <span class="text-danger">已过期 ({{ company.expiry_date }})</span>
+                        {% else %}
+                        <span class="text-warning">{{ company.expiry_date }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            </table>
+        </div></div>
+    </div>
+    <div class="col-md-6">
+        <div class="card"><div class="card-body">
+            <h6>公司用户 ({{ users|length }})</h6>
+            <ul class="list-group list-group-flush">
+                {% for u in users %}
+                <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                    {{ u.display_name }} ({{ u.username }})
+                    <span class="badge bg-info">{{ {'super_admin':'超级管理员','company_admin':'公司管理员','inputer':'录入员','reviewer':'审核员','viewer':'查看者'}[u.role] }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div></div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100"><div class="card-body">
+            <h6>
+                <span class="d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-coins me-1"></i>AI点数</span>
+                    <span class="badge bg-{{ 'success' if ai_balance > 0 else 'secondary' }} fs-6">{{ ai_balance }} 点</span>
+                </span>
+            </h6>
+            <p class="text-muted small">1元 = 100 AI点数，用于AI智能助手对话消耗</p>
+            <button class="btn btn-outline-warning btn-sm" onclick="showAiRecharge({{ company.id }}, '{{ company.name }}')"><i class="fas fa-plus"></i> 充值</button>
+            {% if recharges %}
+            <hr>
+            <h6 class="small text-muted mb-2">充值记录</h6>
+            <table class="table table-sm table-borderless mb-0">
+                {% for r in recharges %}
+                <tr>
+                    <td class="text-nowrap small">{{ r.created_at.strftime('%m-%d %H:%M') if r.created_at else '' }}</td>
+                    <td class="small">¥{{ r.amount }} → {{ r.points }}点</td>
+                    <td class="small text-muted">{{ r.remark or '' }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+            {% endif %}
+        </div></div>
+    </div>
+    <div class="col-md-12">
+        <div class="card"><div class="card-body">
+            <h6>结账历史</h6>
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead><tr><th>期间</th><th>已结转</th><th>已结账</th><th>结账人</th><th>结账时间</th></tr></thead>
+                    <tbody>
+                        {% for p in periods %}
+                        <tr>
+                            <td>{{ p.period }}</td>
+                            <td><i class="fas fa-{{ 'check-circle text-success' if p.is_carried_forward else 'times-circle text-muted' }}"></i></td>
+                            <td><i class="fas fa-{{ 'lock text-success' if p.is_closed else 'unlock text-muted' }}"></i></td>
+                            <td>{{ p.closed_by }}</td>
+                            <td>{{ p.closed_at or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                        {% if not periods %}<tr><td colspan="5" class="text-muted">暂无数据</td></tr>{% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div></div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<!-- 充值弹窗 -->
+<div class="modal fade" id="aiRechargeModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-coins me-1"></i>AI点数充值</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small" id="rechargeCompanyName"></p>
+                <div class="mb-3">
+                    <label class="form-label">充值金额（元）</label>
+                    <div class="input-group">
+                        <span class="input-group-text">¥</span>
+                        <input type="number" id="rechargeAmount" class="form-control" value="10" min="1" step="1">
+                    </div>
+                    <small class="text-muted">1元 = 100 AI点数</small>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">获得点数</label>
+                    <div class="form-control-plaintext fw-bold text-success" id="rechargePointsPreview">1000 点</div>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">备注（可选）</label>
+                    <input type="text" id="rechargeRemark" class="form-control" placeholder="如：首次充值">
+                </div>
+                <div id="rechargeResult" class="small" style="display:none"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="doAiRecharge()"><i class="fas fa-coins"></i> 确认充值</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+var rechargeCompanyId = {{ company.id }};
+function showAiRecharge(cid, cname) {
+    rechargeCompanyId = cid;
+    document.getElementById('rechargeCompanyName').textContent = '公司：' + cname;
+    document.getElementById('rechargeAmount').value = 10;
+    document.getElementById('rechargeRemark').value = '';
+    document.getElementById('rechargeResult').style.display = 'none';
+    updatePointsPreview();
+    new bootstrap.Modal(document.getElementById('aiRechargeModal')).show();
+}
+function updatePointsPreview() {
+    var amt = parseFloat(document.getElementById('rechargeAmount').value) || 0;
+    document.getElementById('rechargePointsPreview').textContent = (amt * 100) + ' 点';
+}
+document.getElementById('rechargeAmount').addEventListener('input', updatePointsPreview);
+function doAiRecharge() {
+    var amt = parseFloat(document.getElementById('rechargeAmount').value) || 0;
+    if (amt <= 0) { showToast('请输入有效金额', 'warning'); return; }
+    var fd = new FormData();
+    fd.append('company_id', rechargeCompanyId);
+    fd.append('amount', amt);
+    fd.append('remark', document.getElementById('rechargeRemark').value);
+    var btn = event.target; btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 充值中...';
+    fetch('/ai/recharge', {method:'POST', body: fd}).then(function(r){ return r.json(); }).then(function(d){
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-coins"></i> 确认充值';
+        if (d.success) {
+            document.getElementById('rechargeResult').className = 'text-success small';
+            document.getElementById('rechargeResult').textContent = d.msg;
+            document.getElementById('rechargeResult').style.display = 'block';
+            showToast(d.msg, 'success');
+            setTimeout(function(){ location.reload(); }, 1200);
+        } else {
+            document.getElementById('rechargeResult').className = 'text-danger small';
+            document.getElementById('rechargeResult').textContent = d.msg;
+            document.getElementById('rechargeResult').style.display = 'block';
+            showToast(d.msg, 'danger');
+        }
+    }).catch(function(){
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-coins"></i> 确认充值';
+        showToast('网络请求失败', 'danger');
+    });
+}
+</script>
+{% endblock %}

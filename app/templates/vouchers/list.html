@@ -1,0 +1,285 @@
+{% extends "base.html" %}
+{% block title %}凭证管理{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center flex-wrap">
+        <h4><i class="fas fa-file-invoice me-2"></i>凭证管理</h4>
+        <div>
+            <form class="d-inline-block" id="periodRangeForm">
+                <input type="month" name="period_start" value="{{ period_start }}" class="form-control form-control-sm d-inline-block w-auto" style="width:140px" onchange="syncPeriodRange()" title="开始月份">
+                <span class="mx-1 text-muted">~</span>
+                <input type="month" name="period_end" value="{{ period_end }}" class="form-control form-control-sm d-inline-block w-auto" style="width:140px" onchange="syncPeriodRange()" title="结束月份">
+                <select name="status" class="form-select form-select-sm d-inline-block w-auto" onchange="this.form.submit()">
+                    <option value="" {% if not status_filter %}selected{% endif %}>全部状态</option>
+                    <option value="draft" {% if status_filter == 'draft' %}selected{% endif %}>草稿</option>
+                    <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>已提交</option>
+                    <option value="approved" {% if status_filter == 'approved' %}selected{% endif %}>已审核</option>
+                    <option value="posted" {% if status_filter == 'posted' %}selected{% endif %}>已过账</option>
+                </select>
+            </form>
+            {% if user.role in ('inputer','company_admin','super_admin') %}
+            <a href="/vouchers/add" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> 新增凭证</a>
+            <a href="/vouchers/copy" class="btn btn-secondary btn-sm"><i class="fas fa-copy"></i> 复制历史凭证</a>
+            <a href="/vouchers/batch-post?period={{ period }}" class="btn btn-success btn-sm"><i class="fas fa-check-circle"></i> 批量过账</a>
+            <a href="/vouchers/export?period={{ period }}" class="btn btn-success btn-sm"><i class="fas fa-file-excel"></i> 导出Excel</a>
+            <button class="btn btn-warning btn-sm" onclick="showImportDialog()"><i class="fas fa-file-import"></i> 导入</button>
+            <a href="/vouchers/export-pdf?period={{ period }}" class="btn btn-danger btn-sm" target="_blank"><i class="fas fa-file-pdf"></i> 导出PDF</a>
+            <button class="btn btn-info btn-sm" onclick="renumber()"><i class="fas fa-sort-numeric-up"></i> 重新编号</button>
+            {% endif %}
+        </div>
+    </div>
+    <p class="text-info mt-2 mb-0">
+        <i class="fas fa-info-circle"></i> 期间范围: <strong>{{ period_start }} ~ {{ period_end }}</strong>
+        {% if period_start != period_end %}<span class="text-muted ms-2">跨期查询</span>{% endif %}
+        {% if vouchers %}<span class="text-muted ms-2">（{{ vouchers|length }} 张凭证）</span>{% endif %}
+    </p>
+    {% if draft_periods %}
+    <div class="mt-2">
+        {% for dp in draft_periods %}
+        {% if dp.p != period and dp.c > 0 %}
+        <a href="/vouchers/?period={{ dp.p }}&status=draft" class="badge bg-warning text-decoration-none me-1">
+            <i class="fas fa-file-invoice"></i> {{ dp.p }} 有 {{ dp.c }} 张草稿
+        </a>
+        {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+<div class="table-responsive">
+    <table class="table table-hover table-sm">
+        <thead><tr><th>凭证号</th><th>日期</th><th>摘要</th><th>金额</th><th>状态</th><th>制单人</th><th>操作</th></tr></thead>
+        <tbody>
+            {% for v in vouchers %}
+            <tr>
+                <td><a href="javascript:void(0)" class="text-decoration-none" onclick="showVoucherDetail({{ v.id }})"><code>{{ v.voucher_no }}</code></a></td>
+                <td>{{ v.date }}</td>
+                <td class="text-truncate" style="max-width:200px">{{ v.summary or '-' }}</td>
+                <td class="text-center fw-medium text-primary">{{ debit_totals[v.id] if v.id in debit_totals else '0.00' }}</td>
+                <td>
+                    <span class="badge bg-{{ 'secondary' if v.status=='draft' else 'warning' if v.status=='pending' else 'info' if v.status=='approved' else 'success' if v.status=='posted' }}">
+                        {{ {'draft':'草稿','pending':'已提交','approved':'已审核','posted':'已过账'}[v.status] }}
+                    </span>
+                </td>
+                <td>{{ v.creator.display_name if v.creator else '-' }}</td>
+                <td>
+                    {% if v.status in ('draft','pending') %}
+                    <a href="/vouchers/{{ v.id }}/edit" class="btn btn-sm btn-outline-primary"><i class="fas fa-edit"></i></a>
+                    {% endif %}
+                    {% if v.status == 'draft' and user.role in ('inputer','company_admin','super_admin') %}
+                    <form method="post" action="/vouchers/{{ v.id }}/submit" class="d-inline">
+                        <button class="btn btn-sm btn-warning"><i class="fas fa-paper-plane"></i> 提交</button>
+                    </form>
+                    {% endif %}
+                    {% if v.status == 'approved' and user.role in ('inputer','company_admin','super_admin') %}
+                    <button class="btn btn-sm btn-success" onclick="postVoucher({{ v.id }})"><i class="fas fa-check-circle"></i> 过账</button>
+                    {% endif %}
+                    {% if v.status == 'pending' and user.role in ('reviewer', 'company_admin') %}
+                    <a href="/vouchers/review" class="btn btn-sm btn-info"><i class="fas fa-check-double"></i> 去审核</a>
+                    {% endif %}
+                    {% if v.status == 'draft' or (v.status == 'pending' and user.role in ('company_admin','super_admin','reviewer')) %}
+                    <button class="btn btn-sm btn-danger" onclick="deleteVoucher({{ v.id }})"><i class="fas fa-trash"></i></button>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" class="text-center text-muted py-4">暂无凭证数据</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- 凭证详情弹窗 -->
+<div class="modal fade" id="voucherDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-file-invoice me-1"></i>凭证详情 <span id="detailVoucherNo"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-lg-7">
+                        <div class="mb-2 small text-muted" id="detailMeta"></div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered mb-0" style="font-size:16px">
+                                <thead><tr>
+                                    <th>摘要</th><th>科目</th><th style="width:10%">方向</th><th style="width:20%" class="text-end">金额</th>
+                                </tr></thead>
+                                <tbody id="detailEntries"></tbody>
+                                <tfoot id="detailTotal" class="fw-bold bg-light"></tfoot>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="col-lg-5">
+                        <div id="detailSourcePanel">
+                            <p class="text-muted small text-center py-5">无关联原始单据</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+<!-- 导入弹窗 -->
+<div class="modal fade" id="importModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-file-import me-1"></i>导入凭证</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="importForm" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <p class="text-muted small">
+                        <i class="fas fa-info-circle"></i> 支持Excel格式，每行一条分录，
+                        同日期+同凭证字+同摘要组成一张凭证。
+                        导入后自动提交审核过账。
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label">选择Excel文件</label>
+                        <input type="file" name="file" class="form-control" accept=".xlsx,.xls" required>
+                    </div>
+                    <div id="importProgress" style="display:none">
+                        <div class="progress mb-2">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" style="width:100%"></div>
+                        </div>
+                        <p class="text-muted small text-center">正在导入，请稍候...</p>
+                    </div>
+                    <div id="importResult" style="display:none"></div>
+                </div>
+                <div class="modal-footer">
+                    <a href="/vouchers/import-template" class="btn btn-outline-info btn-sm">
+                        <i class="fas fa-download"></i> 下载模板
+                    </a>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary" id="importBtn">
+                        <i class="fas fa-upload"></i> 开始导入
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% block scripts %}
+<script>
+// 期间范围同步：输入任一端自动补齐另一端
+function syncPeriodRange() {
+    var f = document.getElementById('periodRangeForm');
+    var s = f.querySelector('[name="period_start"]');
+    var e = f.querySelector('[name="period_end"]');
+    if (!s.value && e.value) { s.value = e.value; }
+    if (s.value && !e.value) { e.value = s.value; }
+    f.submit();
+}
+function renumber() {
+    showConfirm('确认对当期所有凭证重新编号？将按日期正序重新生成凭证号（已结账期间不可操作）。', function() {
+        const formData = new FormData();
+        formData.append('period', '{{ period }}');
+        fetch('/vouchers/renumber', {method:'POST', body: formData}).then(r=>r.json()).then(d=>{
+            showToast(d.msg, d.success ? 'success' : 'danger'); if(d.success) location.reload();
+        });
+    });
+}
+function postVoucher(id) {
+    fetch('/vouchers/' + id + '/post', {method:'POST'}).then(r=>r.json()).then(d=>{
+        showToast(d.msg, d.success ? 'success' : 'danger'); if(d.success) location.reload();
+    });
+}
+function deleteVoucher(id) {
+    showConfirm('确认删除此凭证？不可恢复！', function() {
+        fetch('/vouchers/' + id + '/delete', {method:'POST'}).then(r=>r.json()).then(d=>{
+            showToast(d.msg, d.success ? 'success' : 'danger'); if(d.success) location.reload();
+        });
+    });
+}
+function showImportDialog() {
+    document.getElementById('importForm').reset();
+    document.getElementById('importResult').style.display = 'none';
+    document.getElementById('importProgress').style.display = 'none';
+    document.getElementById('importBtn').disabled = false;
+    new bootstrap.Modal(document.getElementById('importModal')).show();
+}
+document.getElementById('importForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var btn = document.getElementById('importBtn');
+    var progress = document.getElementById('importProgress');
+    var result = document.getElementById('importResult');
+    btn.disabled = true;
+    progress.style.display = 'block';
+    result.style.display = 'none';
+    var fd = new FormData(this);
+    fetch('/vouchers/import', {method:'POST', body:fd})
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            progress.style.display = 'none';
+            result.style.display = 'block';
+            result.innerHTML = '<div class="alert alert-' + (d.success ? 'success' : 'danger') + ' py-2">' +
+                '<i class="fas fa-' + (d.success ? 'check-circle' : 'exclamation-circle') + ' me-1"></i>' +
+                d.msg + '</div>';
+            if (d.errors && d.errors.length > 0) {
+                result.innerHTML += '<div class="small text-danger"><ul class="mb-0">';
+                d.errors.forEach(function(e) { result.innerHTML += '<li>' + e + '</li>'; });
+                result.innerHTML += '</ul></div>';
+            }
+            btn.disabled = false;
+            if (d.success) setTimeout(function() { location.reload(); }, 1500);
+        })
+        .catch(function(e) {
+            progress.style.display = 'none';
+            result.style.display = 'block';
+            result.innerHTML = '<div class="alert alert-danger py-2">请求失败: ' + e.message + '</div>';
+            btn.disabled = false;
+        });
+});
+function showVoucherDetail(id) {
+    const modal = new bootstrap.Modal(document.getElementById('voucherDetailModal'));
+    document.getElementById('detailVoucherNo').textContent = '加载中...';
+    document.getElementById('detailMeta').textContent = '';
+    document.getElementById('detailEntries').innerHTML = '';
+    document.getElementById('detailTotal').innerHTML = '';
+    document.getElementById('detailSourcePanel').innerHTML = '<p class="text-muted small text-center py-5">加载中...</p>';
+    modal.show();
+
+    fetch('/vouchers/' + id + '/detail')
+        .then(r => r.json())
+        .then(d => {
+            if (!d.success) { showToast(d.msg, 'danger'); modal.hide(); return; }
+            const v = d.voucher;
+            document.getElementById('detailVoucherNo').textContent = v.voucher_no;
+            const statusMap = {'draft':'草稿','pending':'已提交','approved':'已审核','posted':'已过账'};
+            document.getElementById('detailMeta').innerHTML =
+                `<i class="fas fa-calendar me-1"></i>${v.date} ` +
+                `<span class="ms-2 badge bg-${v.status==='posted'?'success':v.status==='approved'?'info':v.status==='pending'?'warning':'secondary'}">${statusMap[v.status]||v.status}</span>` +
+                ` · 制单: ${v.creator} · 审核: ${v.reviewer || '-'}` +
+                (v.source_type ? ` · 来源: ${v.source_type}` : '');
+
+            let html = '';
+            let debitTotal = 0, creditTotal = 0;
+            d.entries.forEach(e => {
+                html += `<tr><td>${e.summary || '-'}</td><td>${e.account_code} ${e.account_name}</td><td>${e.direction}</td><td class="text-end ${e.direction==='借'?'text-primary':'text-success'}">${e.amount.toFixed(2)}</td></tr>`;
+                if (e.direction === '借') debitTotal += e.amount;
+                else creditTotal += e.amount;
+            });
+            document.getElementById('detailEntries').innerHTML = html;
+            document.getElementById('detailTotal').innerHTML =
+                `<tr><td colspan="2"><strong>合  计</strong></td><td></td><td class="text-end text-primary fw-bold">${debitTotal.toFixed(2)}</td></tr>` +
+                `<tr style="display:none"><td></td><td></td><td></td><td class="text-end text-success fw-bold">${creditTotal.toFixed(2)}</td></tr>`;
+
+            // 原始单据面板
+            const panel = document.getElementById('detailSourcePanel');
+            if (d.source_file) {
+                panel.innerHTML = `<div class="card"><div class="card-header py-1"><small><i class="fas fa-paperclip me-1"></i>原始单据</small></div><div class="card-body p-1"><iframe src="${d.source_file.url}" style="width:100%;height:500px;border:none"></iframe></div></div>`;
+            } else {
+                panel.innerHTML = '<p class="text-muted small text-center py-5">无关联原始单据</p>';
+            }
+        })
+        .catch(e => { showToast('加载失败: ' + e.message, 'danger'); });
+}
+</script>
+{% endblock %}

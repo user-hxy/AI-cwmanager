@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}{{ '编辑公司' if edit_mode else '新增公司' }}{% endblock %}
+{% block content %}
+<div class="page-header"><h4><i class="fas fa-{{ 'edit' if edit_mode else 'plus' }} me-2"></i>{{ '编辑公司' if edit_mode else '新增公司' }}</h4></div>
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-body">
+                {% if error %}
+                <div class="alert alert-danger">{{ error }}</div>
+                {% endif %}
+                <form method="post">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">公司名称 *</label>
+                            <input name="name" class="form-control" required value="{{ company.name if edit_mode else '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">公司编码 *</label>
+                            <input name="code" class="form-control" required value="{{ company.code if edit_mode else '' }}" {{ 'readonly' if edit_mode }}>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">统一社会信用代码</label>
+                            <input name="tax_id" class="form-control" value="{{ company.tax_id or '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">启用日期</label>
+                            <input name="start_date" type="date" class="form-control" value="{{ company.start_date if edit_mode else '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">所属行业</label>
+                            <input name="industry" class="form-control" placeholder="如：代理记账、制造业" value="{{ company.industry or '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">联系人</label>
+                            <input name="contact_person" class="form-control" placeholder="联系人姓名" value="{{ company.contact_person or '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">联系电话</label>
+                            <input name="contact_phone" class="form-control" placeholder="手机号或固话" value="{{ company.contact_phone or '' }}">
+                        </div>
+                    </div>
+
+                    {% if edit_mode %}
+                    <hr class="my-4">
+                    <h6><i class="fas fa-clock me-1"></i>使用时效</h6>
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-4">
+                            <label class="form-label">时效类型</label>
+                            <select name="expiry_type" class="form-select" id="expiryTypeSelect">
+                                <option value="permanent" {{ 'selected' if company.expiry_type=='permanent' }}>永久</option>
+                                <option value="fixed" {{ 'selected' if company.expiry_type=='fixed' }}>固定期限</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4" id="expiryDateGroup" style="{{ 'display:none' if company.expiry_type=='permanent' }}">
+                            <label class="form-label">截止日期</label>
+                            <input name="expiry_date" type="date" class="form-control" value="{{ company.expiry_date if edit_mode and company.expiry_date else '' }}">
+                        </div>
+                    </div>
+                    {% else %}
+                    {# 新增模式：管理员信息 #}
+                    <h6 class="mt-4 mb-3"><i class="fas fa-user-shield me-1"></i>公司管理员信息</h6>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">管理员用户名 *</label>
+                            <input name="admin_username" class="form-control" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">管理员密码 *</label>
+                            <input name="admin_password" type="password" class="form-control" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">显示名称</label>
+                            <input name="admin_display" class="form-control">
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> {{ '保存修改' if edit_mode else '创建公司并初始化科目' }}</button>
+                        <a href="/companies/" class="btn btn-secondary ms-2">取消</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if edit_mode %}
+<script>
+document.getElementById('expiryTypeSelect').addEventListener('change', function() {
+    document.getElementById('expiryDateGroup').style.display = this.value === 'fixed' ? '' : 'none';
+});
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+{% block title %}确认复制凭证{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h4><i class="fas fa-copy me-2"></i>确认复制凭证</h4>
+    <p class="text-muted mb-0">
+        当前期间: <strong>{{ current_period }}</strong> | 
+        待生成 <strong>{{ preview_list|length }}</strong> 张凭证
+        <span class="ms-2 text-warning"><i class="fas fa-exclamation-triangle"></i> 请逐张检查并编辑后确认</span>
+    </p>
+</div>
+
+<!-- 批量调整工具栏 -->
+<div class="card mb-3 border-info">
+    <div class="card-header"><i class="fas fa-sliders-h me-1"></i>批量调整</div>
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">批量修改日期</label>
+                <input type="date" id="batchDate" class="form-control form-control-sm" value="{{ current_period }}-01">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">摘要前缀</label>
+                <input id="batchPrefix" class="form-control form-control-sm" placeholder="如：(补录)">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">摘要后缀</label>
+                <input id="batchSuffix" class="form-control form-control-sm" placeholder="如：(复制)">
+            </div>
+            <div class="col-md-2">
+                <button type="button" class="btn btn-sm btn-info w-100" onclick="applyBatch()">
+                    <i class="fas fa-check"></i> 应用
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<form method="post" id="confirmForm">
+<input type="hidden" name="voucher_count" value="{{ preview_list|length }}">
+
+{% for pv in preview_list %}
+{% set outer_idx = loop.index0 %}
+<div class="card mb-3 voucher-card" data-index="{{ loop.index0 }}">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>
+            <input type="checkbox" class="voucher-select me-2" checked onchange="updateStats()">
+            <strong>凭证 {{ loop.index }}</strong>
+            <span class="text-muted ms-2">(源: {{ pv.source_no }})</span>
+        </span>
+        <div>
+            <span class="balance-status badge bg-warning" id="balance_{{ loop.index0 }}">校验中...</span>
+            <button type="button" class="btn btn-sm btn-outline-primary ms-2" onclick="editVoucher({{ loop.index0 }})">
+                <i class="fas fa-edit"></i> 编辑
+            </button>
+        </div>
+    </div>
+    <div class="card-body py-2">
+        <div class="row g-2">
+            <div class="col-md-4">
+                <label class="form-label small">凭证日期</label>
+                <input name="v_{{ loop.index0 }}_date" type="date" class="form-control form-control-sm voucher-date"
+                       value="{{ current_period }}-01">
+            </div>
+            <div class="col-md-8">
+                <label class="form-label small">摘要</label>
+                <input name="v_{{ loop.index0 }}_summary" class="form-control form-control-sm voucher-summary"
+                       value="{{ pv.summary or '' }}">
+            </div>
+        </div>
+        <input type="hidden" name="v_{{ loop.index0 }}_source_id" value="{{ pv.source_id }}">
+        <input type="hidden" name="v_{{ loop.index0 }}_entries" value="{{ pv.entries|length }}">
+
+        <div class="table-responsive mt-2">
+            <table class="table table-sm table-bordered mb-0 entry-table">
+                <thead><tr>
+                    <th style="width:35%">科目</th><th style="width:8%">方向</th>
+                    <th style="width:15%">金额</th><th style="width:37%">分录摘要</th>
+                    <th style="width:5%"></th>
+                </tr></thead>
+                <tbody>
+                    {% for e in pv.entries %}
+                    <tr class="entry-row">
+                        <td>
+                            <select name="v_{{ outer_idx }}_e_{{ loop.index0 }}_account_id" class="form-select form-select-sm entry-account" required>
+                                <option value="">选择科目</option>
+                                {% for a in accounts %}
+                                <option value="{{ a.id }}" {% if a.id == e.account_id %}selected{% endif %}>
+                                    {{ a.code }} {{ a.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td>
+                            <select name="v_{{ outer_idx }}_e_{{ loop.index0 }}_direction" class="form-select form-select-sm entry-direction">
+                                <option value="借" {% if e.direction == '借' %}selected{% endif %}>借</option>
+                                <option value="贷" {% if e.direction == '贷' %}selected{% endif %}>贷</option>
+                            </select>
+                        </td>
+                        <td>
+                            <input name="v_{{ outer_idx }}_e_{{ loop.index0 }}_amount" type="number" step="0.01"
+                                   class="form-control form-control-sm entry-amount" value="{{ e.amount }}" required
+                                   oninput="calcBalance({{ outer_idx }})">
+                        </td>
+                        <td>
+                            <input name="v_{{ outer_idx }}_e_{{ loop.index0 }}_summary"
+                                   class="form-control form-control-sm entry-summary" value="{{ e.summary }}">
+                        </td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeEntry(this)"><i class="fas fa-times"></i></button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="text-end mt-1">
+            <span class="small">借方合计: <strong class="debit-total text-primary">0.00</strong></span>
+            <span class="small ms-3">贷方合计: <strong class="credit-total text-success">0.00</strong></span>
+            <span class="small ms-3">差额: <strong class="balance-diff text-danger">0.00</strong></span>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<!-- 底部操作栏 -->
+<div class="sticky-bottom bg-dark py-3 mt-3 border-top" style="position:sticky;bottom:0;z-index:100;">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <span class="text-muted">已选择 <strong id="selectedCount">{{ preview_list|length }}</strong> 张凭证</span>
+            <span class="text-warning ms-3" id="errorCount" style="display:none">
+                <i class="fas fa-exclamation-circle"></i> <span id="errorCountText">0</span> 张不平衡
+            </span>
+        </div>
+        <div>
+            <button type="button" class="btn btn-secondary me-2" onclick="saveDraft()">
+                <i class="fas fa-save"></i> 保存为草稿
+            </button>
+            <button type="button" class="btn btn-success" onclick="confirmGenerate()">
+                <i class="fas fa-check-double"></i> 全部确认生成
+            </button>
+        </div>
+    </div>
+</div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+const previewData = {{ preview_json|safe }};
+const accountsData = {{ accounts_json|safe }};
+
+// ===== 借贷平衡计算 =====
+function calcBalance(idx) {
+    const card = document.querySelector(`.voucher-card[data-index="${idx}"]`);
+    if (!card) return;
+    let debit = 0, credit = 0;
+    card.querySelectorAll('.entry-row').forEach(row => {
+        const dir = row.querySelector('.entry-direction')?.value;
+        const amt = parseFloat(row.querySelector('.entry-amount')?.value) || 0;
+        if (dir === '借') debit += amt; else credit += amt;
+    });
+    card.querySelector('.debit-total').textContent = debit.toFixed(2);
+    card.querySelector('.credit-total').textContent = credit.toFixed(2);
+    const diff = debit - credit;
+    const diffEl = card.querySelector('.balance-diff');
+    diffEl.textContent = diff.toFixed(2);
+    const badge = document.getElementById(`balance_${idx}`);
+    if (Math.abs(diff) < 0.01) {
+        badge.className = 'balance-status badge bg-success';
+        badge.textContent = '✓ 平衡';
+        card.querySelector('.card-header').style.borderLeft = '3px solid #00e676';
+    } else {
+        badge.className = 'balance-status badge bg-danger';
+        badge.textContent = `✗ 差 ${diff.toFixed(2)}`;
+        card.querySelector('.card-header').style.borderLeft = '3px solid #ff1744';
+    }
+    updateStats();
+}
+
+function updateStats() {
+    let selected = 0, errors = 0;
+    document.querySelectorAll('.voucher-card').forEach(card => {
+        const idx = card.dataset.index;
+        if (card.querySelector('.voucher-select')?.checked) {
+            selected++;
+            const diff = parseFloat(card.querySelector('.balance-diff')?.textContent) || 0;
+            if (Math.abs(diff) >= 0.01) errors++;
+        }
+    });
+    document.getElementById('selectedCount').textContent = selected;
+    const errEl = document.getElementById('errorCount');
+    if (errors > 0) {
+        errEl.style.display = 'inline';
+        document.getElementById('errorCountText').textContent = errors;
+    } else {
+        errEl.style.display = 'none';
+    }
+}
+
+// ===== 批量调整 =====
+function applyBatch() {
+    const dateVal = document.getElementById('batchDate').value;
+    const prefix = document.getElementById('batchPrefix').value;
+    const suffix = document.getElementById('batchSuffix').value;
+    document.querySelectorAll('.voucher-card').forEach(card => {
+        if (!card.querySelector('.voucher-select')?.checked) return;
+        if (dateVal) card.querySelector('.voucher-date').value = dateVal;
+        const summaryEl = card.querySelector('.voucher-summary');
+        if (prefix || suffix) {
+            let s = summaryEl.value;
+            if (prefix && !s.startsWith(prefix)) s = prefix + s;
+            if (suffix && !s.endsWith(suffix)) s = s + suffix;
+            summaryEl.value = s;
+        }
+    });
+}
+
+// ===== 编辑弹窗 =====
+let currentEditIdx = -1;
+function editVoucher(idx) {
+    currentEditIdx = idx;
+    const data = previewData[idx];
+    const accountsHtml = accountsData.map(a =>
+        `<option value="${a.id}">${a.code} ${a.name}</option>`
+    ).join('');
+    let entriesHtml = '';
+    data.entries.forEach((e, ei) => {
+        entriesHtml += `
+        <tr>
+            <td><select class="form-select form-select-sm edit-account">${accountsHtml.replace(`value="${e.account_id}"`, `value="${e.account_id}" selected`)}</select></td>
+            <td><select class="form-select form-select-sm edit-direction"><option value="借" ${e.direction==='借'?'selected':''}>借</option><option value="贷" ${e.direction==='贷'?'selected':''}>贷</option></select></td>
+            <td><input type="number" step="0.01" class="form-control form-control-sm edit-amount" value="${e.amount}"></td>
+            <td><input class="form-control form-control-sm edit-summary" value="${e.summary}"></td>
+        </tr>`;
+    });
+    document.getElementById('editModalBody').innerHTML = `
+        <div class="mb-2"><label class="small">摘要</label><input id="editSummary" class="form-control" value="${data.summary}"></div>
+        <div class="table-responsive"><table class="table table-sm table-bordered">
+            <thead><tr><th>科目</th><th>方向</th><th>金额</th><th>摘要</th></tr></thead>
+            <tbody>${entriesHtml}</tbody>
+        </table></div>`;
+    new bootstrap.Modal(document.getElementById('editModal')).show();
+}
+
+function saveEdit() {
+    const card = document.querySelector(`.voucher-card[data-index="${currentEditIdx}"]`);
+    if (!card) return;
+    const summaryEl = card.querySelector('.voucher-summary');
+    summaryEl.value = document.getElementById('editSummary').value;
+    const rows = card.querySelectorAll('.entry-row');
+    const modalRows = document.querySelectorAll('#editModalBody .table tbody tr');
+    rows.forEach((row, i) => {
+        if (modalRows[i]) {
+            row.querySelector('.entry-account').value = modalRows[i].querySelector('.edit-account').value;
+            row.querySelector('.entry-direction').value = modalRows[i].querySelector('.edit-direction').value;
+            row.querySelector('.entry-amount').value = modalRows[i].querySelector('.edit-amount').value;
+            row.querySelector('.entry-summary').value = modalRows[i].querySelector('.edit-summary').value;
+        }
+    });
+    calcBalance(currentEditIdx);
+    bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
+}
+
+// ===== 删除分录 =====
+function removeEntry(btn) {
+    const row = btn.closest('.entry-row');
+    const card = row.closest('.voucher-card');
+    const idx = card.dataset.index;
+    const table = row.closest('.entry-table');
+    if (table.querySelectorAll('.entry-row').length <= 1) {
+        showToast('至少需要保留一条分录', 'warning'); return;
+    }
+    row.remove();
+    calcBalance(parseInt(idx));
+}
+
+// ===== 保存和执行 =====
+function saveDraft() {
+    document.getElementById('confirmForm').action = '/vouchers/copy/save-draft';
+    // 标记并提交表单
+    const form = document.getElementById('confirmForm');
+    const formData = new FormData(form);
+    fetch('/vouchers/copy/save-draft', {method:'POST', body: formData})
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) {
+                window.location.href = '/vouchers/?period={{ current_period }}';
+            }
+            showToast(d.msg, d.success ? 'success' : 'danger');
+        });
+}
+
+function confirmGenerate() {
+    let hasError = false;
+    document.querySelectorAll('.voucher-card').forEach(card => {
+        const diff = parseFloat(card.querySelector('.balance-diff')?.textContent) || 0;
+        if (Math.abs(diff) >= 0.01) hasError = true;
+    });
+    if (hasError) { showToast('存在借贷不平衡的凭证，请修正后再生成', 'danger'); return; }
+    showConfirm('确认生成所有选中凭证？', function() {
+        const form = document.getElementById('confirmForm');
+        const formData = new FormData(form);
+        fetch('/vouchers/copy/confirm', {method:'POST', body: formData})
+            .then(r => r.json())
+            .then(d => {
+                if (d.success) {
+                    window.location.href = '/vouchers/?period={{ current_period }}';
+                }
+                showToast(d.msg, d.success ? 'success' : 'danger');
+            });
+    });
+}
+
+// ===== 初始化 =====
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.voucher-card').forEach(card => {
+        const idx = parseInt(card.dataset.index);
+        calcBalance(idx);
+    });
+});
+</script>
+
+<!-- 编辑弹窗 -->
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title"><i class="fas fa-edit me-1"></i>编辑凭证</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="editModalBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveEdit()"><i class="fas fa-check"></i> 确认修改</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}资产负债表{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center flex-wrap">
+        <h4><i class="fas fa-balance-scale me-2"></i>资产负债表</h4>
+        <div>
+            <div class="btn-group btn-group-sm me-2">
+                <a href="/reports/trial-balance?period_type={{ period_type }}&period_value={{ period_value }}" class="btn btn-outline-primary">科目汇总</a>
+                <a href="javascript:void(0)" class="btn btn-primary active">资产负债表</a>
+                <a href="/reports/income-statement?period_type={{ period_type }}&period_value={{ period_value }}" class="btn btn-outline-primary">利润表</a>
+            </div>
+            <div class="btn-group btn-group-sm">
+                <button class="btn btn-sm btn-info" onclick="saveReport('balance_sheet')"><i class="fas fa-save"></i> 保存报表</button>
+                <a href="/reports/export-pdf?type=balance&period_type={{ period_type }}&period_value={{ period_value }}" class="btn btn-sm btn-danger" target="_blank"><i class="fas fa-file-pdf"></i> PDF</a>
+            </div>
+        </div>
+    </div>
+    <div id="cacheHint" class="mt-1" style="display:none"></div>
+    <div class="d-flex justify-content-between align-items-center mt-1">
+        <p class="text-muted small mb-0">{{ sheet.company }} · <strong>{{ period_display }}</strong></p>
+        {% include "reports/_period_selector.html" %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered mb-0" style="font-size:16px">
+                <thead>
+                    <tr class="bg-light text-center">
+                        <th style="width:24%">资 产</th>
+                        <th style="width:7%">行次</th>
+                        <th style="width:11%">期初数</th>
+                        <th style="width:11%">期末数</th>
+                        <th style="width:1%"></th>
+                        <th style="width:24%">负债和所有者权益</th>
+                        <th style="width:7%">行次</th>
+                        <th style="width:11%">期初数</th>
+                        <th style="width:11%">期末数</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% set left_items = sheet.left_items %}
+                    {% set right_items = sheet.right_items %}
+                    {% set max_rows = [left_items|length, right_items|length]|max %}
+                    {% set left_count = left_items|length %}
+                    {% set right_count = right_items|length %}
+                    {% set left_idx = namespace(val=0) %}
+                    {% set right_idx = namespace(val=0) %}
+                    {% for i in range(max_rows) %}
+                    {% set li = left_items[i] if i < left_count else None %}
+                    {% set ri = right_items[i] if i < right_count else None %}
+                    <tr>
+                        <td class="{{ 'fw-bold' if li and li.is_header else '' }}">
+                            {%- if li -%}
+                                {% if not li.is_header %}{{ li.name }}{% set left_idx.val = left_idx.val + 1 %}{% else %}{{ li.name }}{% endif %}
+                            {%- endif -%}
+                        </td>
+                        <td class="text-center">{% if li and not li.is_header %}{{ left_idx.val }}{% endif %}</td>
+                        <td class="text-center">{{ '%.2f'|format(li.year_start) if li and li.year_start != '' else '' }}</td>
+                        <td class="text-center">{{ '%.2f'|format(li.closing) if li and li.closing != '' else '' }}</td>
+                        <td></td>
+                        <td class="{{ 'fw-bold' if ri and ri.is_header else '' }}">
+                            {%- if ri -%}
+                                {% if not ri.is_header %}{{ ri.name }}{% set right_idx.val = right_idx.val + 1 %}{% else %}{{ ri.name }}{% endif %}
+                            {%- endif -%}
+                        </td>
+                        <td class="text-center">{% if ri and not ri.is_header %}{{ right_idx.val }}{% endif %}</td>
+                        <td class="text-center">{{ '%.2f'|format(ri.year_start) if ri and ri.year_start != '' else '' }}</td>
+                        <td class="text-center">{{ '%.2f'|format(ri.closing) if ri and ri.closing != '' else '' }}</td>
+                    </tr>
+                    {% endfor %}
+                    <!-- 合计行 -->
+                    {% set diff = sheet.total_assets - sheet.total_liabilities_equity %}
+                    <tr class="fw-bold bg-info bg-opacity-10">
+                        <td>资产总计</td><td></td>
+                        <td class="text-center">{{ '%.2f'|format(sheet.total_assets_year_start) }}</td>
+                        <td class="text-center text-primary">{{ '%.2f'|format(sheet.total_assets) }}</td>
+                        <td></td>
+                        <td>负债和所有者权益总计</td><td></td>
+                        <td class="text-center">{{ '%.2f'|format(sheet.total_le_year_start) }}</td>
+                        <td class="text-center text-danger">{{ '%.2f'|format(sheet.total_liabilities_equity) }}</td>
+                    </tr>
+                    {% if diff|abs > 0.01 %}
+                    <tr class="text-danger" style="font-size:14px">
+                        <td colspan="9" class="text-center"><i class="fas fa-exclamation-triangle"></i> 差额: {{ '%.2f'|format(diff) }}（资产 - 负债和所有者权益），请检查当期凭证和结转状态</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const CUR_TYPE = 'balance_sheet';
+const CUR_PERIOD_TYPE = '{{ period_type }}';
+const CUR_PERIOD_VALUE = '{{ period_value }}';
+_aiPageContext = '正在查看资产负债表，期间类型:' + CUR_PERIOD_TYPE + '，期间:' + CUR_PERIOD_VALUE + '，公司:{{ company.name if company else "" }}';
+fetch('/reports/check-cache?type='+CUR_TYPE+'&period_type='+CUR_PERIOD_TYPE+'&period_value='+CUR_PERIOD_VALUE)
+    .then(r=>r.json()).then(d=>{ if(d.cached) { document.getElementById('cacheHint').innerHTML = '<div class="alert alert-info py-1 mb-1"><i class="fas fa-database"></i> 已保存 <a href="/reports/history" target="_blank">查看历史</a>（'+d.created_at+'）</div>'; document.getElementById('cacheHint').style.display = ''; } });
+function saveReport(type) {
+    var fd = new FormData();
+    fd.append('type', type); fd.append('period_type', CUR_PERIOD_TYPE); fd.append('period_value', CUR_PERIOD_VALUE);
+    fd.append('data', JSON.stringify({type:type,period_type:CUR_PERIOD_TYPE,period_value:CUR_PERIOD_VALUE}));
+    fetch('/reports/save', {method:'POST',body:fd}).then(r=>r.json()).then(d=>{ showToast(d.msg,d.success?'success':'danger'); if(d.success) location.reload(); });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}科目汇总表{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center flex-wrap">
+        <h4><i class="fas fa-balance-scale me-2"></i>科目汇总表</h4>
+        <div>
+            <div class="btn-group btn-group-sm me-2">
+                <a href="javascript:void(0)" class="btn btn-primary active">科目汇总</a>
+                <a href="/reports/balance-sheet?period_type={{ period_type }}&period_value={{ period_value }}" class="btn btn-outline-primary">资产负债表</a>
+                <a href="/reports/income-statement?period_type={{ period_type }}&period_value={{ period_value }}" class="btn btn-outline-primary">利润表</a>
+            </div>
+            <div class="btn-group btn-group-sm">
+                <button class="btn btn-sm btn-info" onclick="saveReport('trial_balance')"><i class="fas fa-save"></i> 保存报表</button>
+                <a href="/reports/export-pdf?type=trial&period_type={{ period_type }}&period_value={{ period_value }}" class="btn btn-sm btn-danger" target="_blank"><i class="fas fa-file-pdf"></i> PDF</a>
+            </div>
+        </div>
+    </div>
+    <div id="cacheHint" class="mt-1" style="display:none"></div>
+    <div class="d-flex justify-content-between align-items-center mt-1">
+        <p class="text-muted small mb-0">{{ company.name if company else '' }} 期间: <strong>{{ period_display }}</strong></p>
+        {% include "reports/_period_selector.html" %}
+    </div>
+</div>
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0">
+                <thead><tr class="text-center">
+                    <th>科目编码</th><th>科目名称</th><th>类别</th>
+                    <th>期初余额</th><th>本期借方</th>
+                    <th>本期贷方</th><th>期末余额</th>
+                </tr></thead>
+                <tbody>
+                    {% for r in data %}
+                    <tr>
+                        <td class="text-center"><code>{{ r.account_code }}</code></td>
+                        <td class="text-center">{{ r.account_name }}</td>
+                        <td class="text-center"><span class="badge bg-{{ 'primary' if r.category=='资产' else 'success' if r.category=='负债' else 'warning' if r.category=='权益' else 'info' if r.category=='成本' else 'secondary' }}">{{ r.category }}</span></td>
+                        <td class="text-center">{{ '%.2f'|format(r.opening_balance) }}</td>
+                        <td class="text-center text-primary">{{ '%.2f'|format(r.debit_amount) }}</td>
+                        <td class="text-center text-success">{{ '%.2f'|format(r.credit_amount) }}</td>
+                        <td class="text-center fw-bold">{{ '%.2f'|format(r.closing_balance) }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="7" class="text-center text-muted py-4">所选期间内无发生额</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const CUR_TYPE = 'trial_balance';
+const CUR_PERIOD_TYPE = '{{ period_type }}';
+const CUR_PERIOD_VALUE = '{{ period_value }}';
+_aiPageContext = '正在查看科目汇总表，期间:' + CUR_PERIOD_VALUE;
+fetch('/reports/check-cache?type=' + CUR_TYPE + '&period_type=' + CUR_PERIOD_TYPE + '&period_value=' + CUR_PERIOD_VALUE)
+    .then(r=>r.json()).then(d=>{
+        if(d.cached) {
+            document.getElementById('cacheHint').innerHTML = '<div class="alert alert-info py-1 mb-1"><i class="fas fa-database"></i> 已保存的历史报表，<a href="/reports/history" target="_blank">点击查看</a>（保存时间: ' + d.created_at + '）</div>';
+            document.getElementById('cacheHint').style.display = '';
+        }
+    });
+function saveReport(type) {
+    const table = document.querySelector('.table');
+    if (!table || table.querySelectorAll('tbody tr').length <= 1) { showToast('无数据可保存', 'warning'); return; }
+    const fd = new FormData();
+    fd.append('type', type);
+    fd.append('period_type', CUR_PERIOD_TYPE);
+    fd.append('period_value', CUR_PERIOD_VALUE);
+    fd.append('data', JSON.stringify({type: type, period_type: CUR_PERIOD_TYPE, period_value: CUR_PERIOD_VALUE}));
+    fetch('/reports/save', {method:'POST', body: fd}).then(r=>r.json()).then(d=>{
+        showToast(d.msg, d.success ? 'success' : 'danger');
+        if(d.success) location.reload();
+    });
+}
+</script>
+{% endblock %}
